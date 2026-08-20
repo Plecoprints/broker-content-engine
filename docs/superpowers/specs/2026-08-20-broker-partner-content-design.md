@@ -1,6 +1,8 @@
 # Broker Partner Content Engine — Design Spec
 
-**Status:** v0.4 draft. Changes from v0.3: originality split into three distinct checks with a corpus-wide uniqueness gate (§10.3); marketing asset library added as a deferred, interface-first dependency (§7, §11.3); Supabase evaluated and deferred with an explicit adoption trigger (§7).
+**Status:** v0.5 draft. Changes from v0.4: newsletter recognised as a publishing channel in its own right — qualification now passes on editorial **or** newsletter (§4, §5 Stage 2); every draft is produced in long and short formats, the short one built for the broker's email newsletter (§5 Stage 4); uniqueness comparison scoped within format so an article does not flag as a duplicate of its own summary (§5, §10.3).
+
+Changes from v0.3: originality split into three distinct checks with a corpus-wide uniqueness gate (§10.3); marketing asset library added as a deferred, interface-first dependency (§7, §11.3); Supabase evaluated and deferred with an explicit adoption trigger (§7).
 
 Change from v0.2: Sunreef's dealer list is unavailable (IT), so the dealer/broker segmentation is removed. One shortlist, uniform treatment for everyone on it. A publicly-detectable Sunreef affinity signal replaces the dealer list for queue ordering only (§4). Remaining open decisions in §11.
 
@@ -54,8 +56,10 @@ One list. Everyone on it is treated identically.
 
 - Brokers or charters multihulls and/or yachts **≥60ft**
 - Operates in Sunreef's markets (Mediterranean, Caribbean, UAE/Gulf, SE Asia, US East Coast)
-- Publishes editorial content updated within the last 12 months
+- Has **at least one publishing channel**: an editorial section (blog/journal/news) updated within the last 12 months, **or** an email newsletter. Either qualifies.
 - Passes human vetting in the UI
+
+**Why newsletter counts as a channel.** A blog post has to be found; a newsletter goes directly to a list of people who chose to hear from that broker. For reaching qualified buyers it is the stronger channel, not a lesser one, so a broker with a newsletter and no blog is a viable target rather than a rejection. The two are detected separately and tracked separately — conflating them (matching `newsletter` with a blog-hint substring) was a real defect caught in review, and the fix was to separate them, not to discard the signal.
 
 **Sunreef affinity signal.** During qualification the system records publicly observable evidence that a broker already has a Sunreef relationship — Sunreef vessels in their listed inventory, existing editorial mentions of the brand, shared yacht-show presence. This is a substitute for the unavailable dealer list, and its use is strictly limited:
 
@@ -86,11 +90,22 @@ Seven stages. Stages 1–4 automated; **Stage 5 is a human gate operated through
 
 Semrush (pending org approval) improves recall but is not a dependency.
 
-**Stage 2 — Qualify.** Fetch public pages, confirm the ≥60ft criterion, confirm an active editorial section, and record the Sunreef affinity signal (§4). Respects `robots.txt`, rate-limited, identifying User-Agent. Output: qualified/rejected with the evidence that drove the call.
+**Stage 2 — Qualify.** Fetch public pages, confirm the ≥60ft criterion, detect **both** publishing channels independently (editorial section and email newsletter), and record the Sunreef affinity signal (§4). A broker passes on either channel; failing both is the rejection. Respects `robots.txt`, rate-limited, identifying User-Agent. Output: qualified/rejected with the evidence that drove the call, and which channels were found.
 
 **Stage 3 — Voice Profile.** Extract published articles, derive a structured style profile: sentence length distribution, formality register, vocabulary markers, article structure, typical length, recurring themes, audience signals. **Stores derived features and short illustrative quotes only — never full article text.**
 
 **Stage 4 — Angle + Draft.** Generate candidate angles scored against that broker's audience, then draft the highest-scoring angle in their register. The draft then passes the three originality gates (§10.3) before it may enter the review queue.
+
+Every draft is produced in **two formats from one angle**:
+
+| Format | Target | Shape |
+|---|---|---|
+| **Long** | The broker's blog/journal | Full article, matched to their typical word count from the voice profile |
+| **Short** | The broker's email newsletter | Compressed version — headline, 100–200 words, and a link back to the long form where one will exist |
+
+The short form is a condensation of the long form, not a separate piece: same angle, same claims, same voice. A broker with only a newsletter receives the short form as the primary deliverable, with the long form offered for their site if they want it.
+
+**This changes the uniqueness gate.** Long and short versions of one article are near-identical by design, so §10.3's embedding comparison must be scoped **within format** — long against long, short against short. Comparing across formats would flag every article as a duplicate of its own summary.
 
 **Stage 4b — Asset attachment (deferred).** Attach marketing-approved imagery from the asset library so the broker receives a publishable package rather than plain text. Behind an `AssetProvider` interface with a null implementation, so Stage 4 does not change when the real source lands (§7, §11.3). **Nothing blocks on this.**
 
@@ -150,7 +165,8 @@ Rationale: one language end to end, and no frontend toolchain to break. Streamli
 
 ```
 broker(id, name, domain, region, segment_evidence, source,
-       sunreef_affinity, affinity_evidence, qualified, qualified_reason,
+       sunreef_affinity, affinity_evidence, has_editorial, has_newsletter,
+       newsletter_evidence, qualified, qualified_reason,
        robots_allowed, created_at)
 
 voice_profile(broker_id, register, avg_sentence_len, typical_word_count,
@@ -160,7 +176,7 @@ voice_profile(broker_id, register, avg_sentence_len, typical_word_count,
 angle(id, broker_id, title, premise, audience_value, sunreef_relevance,
       score, rejected_reason)
 
-draft(id, angle_id, body_md, word_count, sunreef_mentions,
+draft(id, angle_id, format, body_md, word_count, sunreef_mentions,
       passes_editorial_value_test, passes_uniqueness, max_similarity,
       most_similar_draft_id, passes_originality, embedding,
       status, reviewed_by, reviewed_at, reviewer_edits)
@@ -173,6 +189,8 @@ outcome(draft_id, sent_at, response, published_url, utm_campaign,
 
 `broker.source` ∈ `discovered | manual`.
 `broker.sunreef_affinity` ∈ `none | mentions | lists_inventory | unknown` — ordering only (§4).
+`broker.has_editorial` and `broker.has_newsletter` are independent booleans; qualification requires at least one (§4).
+`draft.format` ∈ `long | short` — see §5 Stage 4. Uniqueness comparison is scoped within format.
 `draft.status` ∈ `pending_review | approved | rejected | sent | published | declined`.
 Nothing reaches `sent` without a human in `reviewed_by`.
 

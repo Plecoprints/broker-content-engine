@@ -599,6 +599,137 @@ git commit -m "feat: editorial section link detector"
 
 ---
 
+### Task 5b: Newsletter detector
+
+Added after review of Task 5 surfaced that `newsletter` was being matched as a blog hint. Separating them was the fix; this task makes the newsletter its own tracked channel, per spec §4 (v0.5).
+
+**Files:**
+- Modify: `broker-content-engine/src/bce/detectors.py`
+- Modify: `broker-content-engine/src/bce/db.py`
+- Test: `broker-content-engine/tests/test_detectors_newsletter.py`
+- Test: `broker-content-engine/tests/test_db.py` (add one column-presence test)
+
+**Interfaces:**
+- Consumes: `bce.detectors` (`_EVIDENCE_CHARS` from Task 4), `bce.db` schema from Task 2
+- Produces:
+  - `detect_newsletter(html: str) -> tuple[bool, str]` — `(present, evidence)`; evidence capped at `_EVIDENCE_CHARS` (160), `""` when absent
+  - three new `broker` columns: `has_editorial INTEGER`, `has_newsletter INTEGER`, `newsletter_evidence TEXT`
+
+Searches raw HTML rather than extracted text, deliberately: signup markup (`class="newsletter-signup"`, `<input type="email">` wrappers) is itself evidence of a newsletter, so attribute matches are signal here rather than noise.
+
+- [ ] **Step 1: Write the failing test**
+
+`tests/test_detectors_newsletter.py`:
+```python
+from bce.detectors import detect_newsletter, find_editorial_urls
+
+
+def test_detects_newsletter_signup():
+    present, evidence = detect_newsletter("Sign up for our newsletter below.")
+    assert present is True
+    assert "newsletter" in evidence.lower()
+
+
+def test_detects_subscribe_wording():
+    present, _ = detect_newsletter("Subscribe to receive new listings.")
+    assert present is True
+
+
+def test_detects_mailing_list_across_whitespace():
+    present, _ = detect_newsletter("Join our mailing\n    list today.")
+    assert present is True
+
+
+def test_detects_signup_markup():
+    present, _ = detect_newsletter('<div class="newsletter-signup"></div>')
+    assert present is True
+
+
+def test_absent_returns_false_and_empty_evidence():
+    present, evidence = detect_newsletter("We sell fine catamarans.")
+    assert present is False
+    assert evidence == ""
+
+
+def test_case_insensitive_and_plural():
+    assert detect_newsletter("NEWSLETTERS")[0] is True
+
+
+def test_evidence_is_capped():
+    present, evidence = detect_newsletter("newsletter " + "x" * 500)
+    assert present is True
+    assert len(evidence) <= 160
+
+
+def test_newsletter_is_not_an_editorial_url():
+    """Guards Task 5's fix: /newsletter must not count as an editorial section,
+    while still being detected as a newsletter channel."""
+    html = '<a href="/newsletter">Newsletter</a>'
+    assert find_editorial_urls(html, "https://acme.com") == []
+    assert detect_newsletter(html)[0] is True
+```
+
+Add to `tests/test_db.py`:
+```python
+def test_broker_has_channel_columns():
+    conn = db.connect(":memory:")
+    db.init_schema(conn)
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(broker)")}
+    assert {"has_editorial", "has_newsletter", "newsletter_evidence"} <= cols
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `.venv/bin/python -m pytest tests/test_detectors_newsletter.py tests/test_db.py -v`
+Expected: FAIL — `ImportError: cannot import name 'detect_newsletter'`, and the column test fails on the missing columns.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Append to `src/bce/detectors.py`:
+```python
+_NEWSLETTER_HINTS = ("newsletter", "subscribe", "mailing list", "email updates")
+_NEWSLETTER_RE = re.compile(
+    r"\b(?:"
+    + "|".join(h.replace(" ", r"[\s\-_]+") for h in _NEWSLETTER_HINTS)
+    + r")s?\b",
+    re.IGNORECASE,
+)
+
+
+def detect_newsletter(html: str) -> tuple[bool, str]:
+    """Does this broker run an email newsletter? (spec §4)
+
+    A newsletter is a publishing channel in its own right, not a weaker
+    substitute for a blog — it reaches an opted-in list directly.
+    """
+    match = _NEWSLETTER_RE.search(html)
+    if match is None:
+        return False, ""
+    start = max(0, match.start() - _EVIDENCE_CHARS // 2)
+    return True, html[start:start + _EVIDENCE_CHARS].strip()
+```
+
+In `src/bce/db.py`, add three columns to the `broker` table DDL, immediately after `affinity_evidence`:
+```sql
+    has_editorial     INTEGER,
+    has_newsletter    INTEGER,
+    newsletter_evidence TEXT,
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `.venv/bin/python -m pytest tests/ -v`
+Expected: PASS — all prior tests plus 8 new newsletter tests and 1 new column test.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/bce/detectors.py src/bce/db.py tests/test_detectors_newsletter.py tests/test_db.py
+git commit -m "feat: newsletter channel detector and broker channel columns"
+```
+
+---
+
 ### Task 6: Robots-aware rate-limited fetcher
 
 **Files:**
@@ -934,18 +1065,46 @@ git commit -m "feat: manual CSV broker import with affinity-ordered listing"
 - Test: `broker-content-engine/tests/test_qualify.py`
 
 **Interfaces:**
-- Consumes: `bce.db`, `bce.detectors` (`detect_max_length_ft`, `detect_sunreef_affinity`, `find_editorial_urls`), `bce.fetch.Fetcher`
+- Consumes: `bce.db`, `bce.detectors` (`detect_max_length_ft`, `detect_sunreef_affinity`, `find_editorial_urls`, `detect_newsletter`), `bce.fetch.Fetcher`
 - Produces:
   - `MIN_LENGTH_FT: int = 60`
-  - `qualify_broker(conn, broker_id: int, fetcher) -> dict` — fetches the broker homepage, runs all three detectors, writes `qualified`, `qualified_reason`, `robots_allowed`, `sunreef_affinity`, `affinity_evidence`, `segment_evidence`; returns the verdict dict with keys `qualified: bool`, `reason: str`.
+  - `qualify_broker(conn, broker_id: int, fetcher) -> dict` — fetches the broker homepage, runs all four detectors, writes `qualified`, `qualified_reason`, `robots_allowed`, `sunreef_affinity`, `affinity_evidence`, `segment_evidence`, `has_editorial`, `has_newsletter`, `newsletter_evidence`; returns the verdict dict with keys `qualified: bool`, `reason: str`.
 
-Verdict rules, in order:
+Verdict rules, in order (amended for spec v0.5 — a newsletter is a qualifying publishing channel):
 1. Homepage unreachable or robots-disallowed → `qualified=0`, reason `"unreachable_or_disallowed"`
 2. No length ≥ 60ft found → `qualified=0`, reason `"below_length_threshold"`
-3. No editorial URLs found → `qualified=0`, reason `"no_editorial_section"`
+3. **Neither** an editorial section **nor** a newsletter found → `qualified=0`, reason `"no_publishing_channel"`
 4. Otherwise → `qualified=1`, reason `"passed"`
 
+Both channels are detected and recorded independently on every run, whatever the verdict — the UI needs to show which channel a broker offers, and Stage 4 needs it to decide whether the long form, the short form, or both are the deliverable.
+
 Affinity is recorded regardless of verdict and never affects it (spec §4).
+
+**Test amendments for this rule change.** In the test code below, make these three changes and leave everything else exactly as written:
+- Rename `test_no_editorial_section_fails` to `test_no_publishing_channel_fails` and change its expected reason from `"no_editorial_section"` to `"no_publishing_channel"`. Its page fixture (`"We sell 80 ft catamarans"`) has neither channel, so it still exercises the right branch.
+- Add this test, which is the whole point of the amendment:
+```python
+def test_newsletter_only_broker_passes():
+    conn, bid = _conn_with_broker()
+    pages = {"https://acme.com/": "Our 80 ft fleet. Sign up for our newsletter."}
+    verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
+    assert verdict["qualified"] is True
+    assert verdict["reason"] == "passed"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_newsletter"] == 1
+    assert row["has_editorial"] == 0
+```
+- Add this test, guarding that an editorial-only broker still passes:
+```python
+def test_editorial_only_broker_passes():
+    conn, bid = _conn_with_broker()
+    pages = {"https://acme.com/": '<a href="/blog">Blog</a> Our 80 ft fleet'}
+    verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
+    assert verdict["qualified"] is True
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_editorial"] == 1
+    assert row["has_newsletter"] == 0
+```
 
 - [ ] **Step 1: Write the failing test**
 
