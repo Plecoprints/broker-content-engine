@@ -25,3 +25,33 @@ def detect_max_length_ft(text: str) -> int | None:
 
     plausible = [c for c in candidates if _MIN_FT <= c <= _MAX_FT]
     return max(plausible) if plausible else None
+
+
+_SUNREEF_RE = re.compile(r"sunreef", re.IGNORECASE)
+_LISTING_MARKERS = (
+    "for sale", "price", "asking", "listing", "available now", "charter from",
+)
+_PROXIMITY_CHARS = 120
+_EVIDENCE_CHARS = 160
+
+
+def detect_sunreef_affinity(text: str) -> tuple[str, str]:
+    """Publicly-observable Sunreef relationship signal (spec §4).
+
+    Ordering only — must never gate pipeline behaviour or quality.
+    """
+    match = _SUNREEF_RE.search(text)
+    if match is None:
+        return "none", ""
+
+    start = max(0, match.start() - _EVIDENCE_CHARS // 2)
+    evidence = text[start:start + _EVIDENCE_CHARS].strip()
+
+    lowered = text.lower()
+    for m in _SUNREEF_RE.finditer(text):
+        window_start = max(0, m.start() - _PROXIMITY_CHARS)
+        window = lowered[window_start:m.end() + _PROXIMITY_CHARS]
+        if any(marker in window for marker in _LISTING_MARKERS):
+            return "lists_inventory", evidence
+
+    return "mentions", evidence
