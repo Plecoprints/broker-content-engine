@@ -4,6 +4,9 @@ Every function here takes text and returns a value — no network, no I/O — so
 qualification logic is testable without crawling anything.
 """
 import re
+from urllib.parse import urljoin, urlparse
+
+from selectolax.parser import HTMLParser
 
 _MIN_FT = 20
 _MAX_FT = 400
@@ -58,3 +61,32 @@ def detect_sunreef_affinity(text: str) -> tuple[str, str]:
     start = max(0, match.start() - _EVIDENCE_CHARS // 2)
     evidence = text[start:start + _EVIDENCE_CHARS].strip()
     return "mentions", evidence
+
+
+_EDITORIAL_HINTS = (
+    "blog", "news", "journal", "insights", "article", "stories", "guides",
+)
+
+
+def find_editorial_urls(html: str, base_url: str) -> list[str]:
+    """Same-host links that look like editorial sections (spec §5 Stage 2)."""
+    base_host = urlparse(base_url).netloc
+    found: list[str] = []
+
+    for node in HTMLParser(html).css("a"):
+        href = node.attributes.get("href")
+        if not href:
+            continue
+
+        anchor = (node.text() or "").lower()
+        haystack = f"{href.lower()} {anchor}"
+        if not any(hint in haystack for hint in _EDITORIAL_HINTS):
+            continue
+
+        absolute = urljoin(base_url, href)
+        if urlparse(absolute).netloc != base_host:
+            continue
+        if absolute not in found:
+            found.append(absolute)
+
+    return found
