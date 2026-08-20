@@ -13,6 +13,10 @@ from bce.detectors import detect_max_length_ft
     ("Built in 1998, price 1200000", None),  # year/price must not match
     ("A 12 ft dinghy", None),                # below 20ft floor
     ("A 500 ft ship", None),                 # above 400ft ceiling
+    ("Asking $25m for this vessel", None),   # currency symbol prevents match
+    ("Priced at £10m", None),                # currency symbol prevents match
+    ("12345ft", None),                       # long digit run prevents match
+    ("30 m yacht", 98),                      # regression: bare m with space still works
 ])
 def test_detect_max_length_ft(text, expected):
     assert detect_max_length_ft(text) == expected

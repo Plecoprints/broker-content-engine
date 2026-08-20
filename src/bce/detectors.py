@@ -9,8 +9,8 @@ _MIN_FT = 20
 _MAX_FT = 400
 _M_TO_FT = 3.28084
 
-_FEET_RE = re.compile(r"(\d{2,3})\s*(?:ft\b|feet\b|foot\b|')", re.IGNORECASE)
-_METRE_RE = re.compile(r"(\d{2,3})\s*(?:m\b|metre|meter)", re.IGNORECASE)
+_FEET_RE = re.compile(r"(?<![\d$£€])(\d{2,3})\s*(?:ft\b|feet\b|foot\b|')", re.IGNORECASE)
+_METRE_RE = re.compile(r"(?<![\d$£€])(\d{2,3})\s*(?:m\b|metre|meter)", re.IGNORECASE)
 
 
 def detect_max_length_ft(text: str) -> int | None:
