@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS broker (
                       CHECK (sunreef_affinity IN
                              ('none', 'mentions', 'lists_inventory', 'unknown')),
     affinity_evidence TEXT,
+    has_editorial     INTEGER,
+    has_newsletter    INTEGER,
+    newsletter_evidence TEXT,
     qualified         INTEGER,
     qualified_reason  TEXT,
     robots_allowed    INTEGER,

@@ -45,3 +45,10 @@ def test_rows_are_mappings():
     )
     row = conn.execute("SELECT name FROM broker").fetchone()
     assert row["name"] == "Acme"
+
+
+def test_broker_has_channel_columns():
+    conn = db.connect(":memory:")
+    db.init_schema(conn)
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(broker)")}
+    assert {"has_editorial", "has_newsletter", "newsletter_evidence"} <= cols

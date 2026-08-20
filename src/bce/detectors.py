@@ -93,3 +93,25 @@ def find_editorial_urls(html: str, base_url: str) -> list[str]:
             found.append(absolute)
 
     return found
+
+
+_NEWSLETTER_HINTS = ("newsletter", "subscribe", "mailing list", "email updates")
+_NEWSLETTER_RE = re.compile(
+    r"\b(?:"
+    + "|".join(h.replace(" ", r"[\s\-_]+") for h in _NEWSLETTER_HINTS)
+    + r")s?\b",
+    re.IGNORECASE,
+)
+
+
+def detect_newsletter(html: str) -> tuple[bool, str]:
+    """Does this broker run an email newsletter? (spec §4)
+
+    A newsletter is a publishing channel in its own right, not a weaker
+    substitute for a blog — it reaches an opted-in list directly.
+    """
+    match = _NEWSLETTER_RE.search(html)
+    if match is None:
+        return False, ""
+    start = max(0, match.start() - _EVIDENCE_CHARS // 2)
+    return True, html[start:start + _EVIDENCE_CHARS].strip()
