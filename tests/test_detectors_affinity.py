@@ -38,3 +38,13 @@ def test_evidence_is_capped():
     level, evidence = detect_sunreef_affinity("Sunreef " + ("x" * 500))
     assert level == "mentions"
     assert len(evidence) <= 160
+
+
+def test_evidence_from_listing_mention_not_first():
+    # Regression test: evidence should come from the mention that triggered
+    # lists_inventory, not from the first mention
+    text = "Sunreef appointed us as distributor last year. " + ("filler " * 20) + "New Sunreef 50 available now for immediate sale."
+    level, evidence = detect_sunreef_affinity(text)
+    assert level == "lists_inventory"
+    # Evidence should contain the listing context, not just the distributor mention
+    assert "available now" in evidence or "50" in evidence

@@ -44,14 +44,17 @@ def detect_sunreef_affinity(text: str) -> tuple[str, str]:
     if match is None:
         return "none", ""
 
-    start = max(0, match.start() - _EVIDENCE_CHARS // 2)
-    evidence = text[start:start + _EVIDENCE_CHARS].strip()
-
     lowered = text.lower()
     for m in _SUNREEF_RE.finditer(text):
         window_start = max(0, m.start() - _PROXIMITY_CHARS)
         window = lowered[window_start:m.end() + _PROXIMITY_CHARS]
         if any(marker in window for marker in _LISTING_MARKERS):
+            # Compute evidence from the match that triggered lists_inventory
+            start = max(0, m.start() - _EVIDENCE_CHARS // 2)
+            evidence = text[start:start + _EVIDENCE_CHARS].strip()
             return "lists_inventory", evidence
 
+    # No listing marker found; use evidence from first mention
+    start = max(0, match.start() - _EVIDENCE_CHARS // 2)
+    evidence = text[start:start + _EVIDENCE_CHARS].strip()
     return "mentions", evidence
