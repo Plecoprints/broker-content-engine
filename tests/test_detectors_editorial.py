@@ -32,3 +32,35 @@ def test_deduplicates_preserving_order():
 def test_handles_absolute_same_host():
     html = '<a href="https://acme.com/insights">Insights</a>'
     assert find_editorial_urls(html, "https://acme.com") == ["https://acme.com/insights"]
+
+
+# Regression tests: word-boundary matching to avoid false positives
+def test_rejects_newsletter_signup():
+    """'news' should not match inside 'newsletter' — requires word boundary."""
+    html = '<a href="/newsletter">Newsletter</a>'
+    assert find_editorial_urls(html, "https://acme.com") == []
+
+
+def test_handles_articles_of_association():
+    """'article' + word boundary matches 'articles' in '/articles-of-association'."""
+    html = '<a href="/articles-of-association">Articles of Association</a>'
+    # '-' is non-word, so \barticles\b matches; articles + s is a bounded token.
+    assert find_editorial_urls(html, "https://acme.com") == ["https://acme.com/articles-of-association"]
+
+
+def test_matches_blog_in_path_with_dashes():
+    """Dashes create word boundaries; '/blog-posts' should still match."""
+    html = '<a href="/blog-posts">Posts</a>'
+    assert find_editorial_urls(html, "https://acme.com") == ["https://acme.com/blog-posts"]
+
+
+def test_case_insensitive_href():
+    """Uppercase href is matched case-insensitively."""
+    html = '<a href="/BLOG">Blog</a>'
+    assert find_editorial_urls(html, "https://acme.com") == ["https://acme.com/BLOG"]
+
+
+def test_rejects_protocol_relative_offsite():
+    """Protocol-relative URLs to other hosts are rejected."""
+    html = '<a href="//other.com/blog">Blog</a>'
+    assert find_editorial_urls(html, "https://acme.com") == []

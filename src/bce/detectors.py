@@ -66,6 +66,9 @@ def detect_sunreef_affinity(text: str) -> tuple[str, str]:
 _EDITORIAL_HINTS = (
     "blog", "news", "journal", "insights", "article", "stories", "guides",
 )
+_EDITORIAL_RE = re.compile(
+    r"\b(?:" + "|".join(_EDITORIAL_HINTS) + r")s?\b", re.IGNORECASE
+)
 
 
 def find_editorial_urls(html: str, base_url: str) -> list[str]:
@@ -78,9 +81,9 @@ def find_editorial_urls(html: str, base_url: str) -> list[str]:
         if not href:
             continue
 
-        anchor = (node.text() or "").lower()
-        haystack = f"{href.lower()} {anchor}"
-        if not any(hint in haystack for hint in _EDITORIAL_HINTS):
+        anchor = node.text() or ""
+        haystack = f"{href} {anchor}"
+        if not _EDITORIAL_RE.search(haystack):
             continue
 
         absolute = urljoin(base_url, href)
