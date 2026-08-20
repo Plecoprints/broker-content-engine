@@ -32,7 +32,7 @@ class Fetcher:
         robots_url = urljoin(url, "/robots.txt")
         try:
             response = self._client.get(robots_url)
-        except httpx.HTTPError:
+        except (httpx.HTTPError, httpx.InvalidURL, ValueError):
             return None
         if response.status_code != 200:
             return None
@@ -55,8 +55,11 @@ class Fetcher:
         self._throttle(urlparse(url).netloc)
         try:
             response = self._client.get(url)
-        except httpx.HTTPError:
+        except (httpx.HTTPError, httpx.InvalidURL, ValueError):
             return None
         if response.status_code != 200:
+            return None
+        final_url = str(response.url)
+        if final_url != url and not self.robots_allows(final_url):
             return None
         return response.text

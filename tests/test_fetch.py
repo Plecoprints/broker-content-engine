@@ -72,3 +72,44 @@ def test_rate_limit_sleeps_between_same_host_requests(monkeypatch):
     f.get("https://acme.com/a")
     f.get("https://acme.com/b")
     assert any(s > 0 for s in slept)
+
+
+def test_user_agent_sent_in_request_headers():
+    captured_headers: dict = {}
+
+    def handler(request):
+        captured_headers.update(request.headers)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nAllow: /")
+        return httpx.Response(200, text="hello")
+
+    f = Fetcher(
+        min_delay=0,
+        client=httpx.Client(
+            transport=httpx.MockTransport(handler),
+            headers={"User-Agent": USER_AGENT},
+        ),
+    )
+    f.get("https://acme.com/page")
+    assert captured_headers.get("user-agent") == USER_AGENT
+
+
+def test_get_returns_none_for_malformed_url():
+    def handler(request):
+        return httpx.Response(200, text="ok")
+
+    f = Fetcher(min_delay=0, client=_client(handler))
+    assert f.get("not a valid url at all") is None
+
+
+def test_get_returns_none_if_redirect_target_disallowed():
+    def handler(request):
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nDisallow: /private")
+        if request.url.path == "/page":
+            # Redirect to a disallowed path
+            return httpx.Response(301, headers={"location": "https://acme.com/private/target"})
+        return httpx.Response(200, text="target content")
+
+    f = Fetcher(min_delay=0, client=_client(handler))
+    assert f.get("https://acme.com/page") is None
