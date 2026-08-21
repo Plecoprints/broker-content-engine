@@ -3,6 +3,22 @@ import sqlite3
 
 SCHEMA_TABLES = ("broker", "voice_profile", "angle", "draft", "outcome")
 
+#: Bumped whenever the shape below changes. Stored in `PRAGMA user_version` so
+#: an existing file can be recognised instead of silently keeping an old shape
+#: (`CREATE TABLE IF NOT EXISTS` never adds a column to a table that exists).
+SCHEMA_VERSION = 1
+
+#: Columns added to already-created tables after their first release. Applied
+#: additively by `init_schema` via ALTER TABLE, in declaration order.
+ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
+    "broker": {
+        "has_editorial": "INTEGER",
+        "has_newsletter": "INTEGER",
+        "newsletter_evidence": "TEXT",
+        "editorial_last_post": "TEXT",
+    },
+}
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS broker (
     id                INTEGER PRIMARY KEY,
@@ -18,6 +34,7 @@ CREATE TABLE IF NOT EXISTS broker (
     has_editorial     INTEGER,
     has_newsletter    INTEGER,
     newsletter_evidence TEXT,
+    editorial_last_post TEXT,
     qualified         INTEGER,
     qualified_reason  TEXT,
     robots_allowed    INTEGER,
@@ -82,6 +99,40 @@ def connect(path: str = "bce.db") -> sqlite3.Connection:
     return conn
 
 
-def init_schema(conn: sqlite3.Connection) -> None:
+class SchemaTooNewError(RuntimeError):
+    """The file on disk was written by a newer version of this code."""
+
+
+def _apply_additive_columns(conn: sqlite3.Connection) -> list[str]:
+    """ALTER TABLE ... ADD COLUMN for anything the file is missing.
+
+    `CREATE TABLE IF NOT EXISTS` is a no-op on an existing table, so a database
+    created before a column was added keeps the old shape and every read of the
+    new column raises `OperationalError: no such column`. This closes that gap.
+    """
+    added: list[str] = []
+    for table, columns in ADDITIVE_COLUMNS.items():
+        present = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if not present:  # table absent entirely; _SCHEMA just created it
+            continue
+        for column, decl in columns.items():
+            if column not in present:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+                added.append(f"{table}.{column}")
+    return added
+
+
+def init_schema(conn: sqlite3.Connection) -> list[str]:
+    """Create or upgrade the schema in place. Returns the columns it added."""
+    found = conn.execute("PRAGMA user_version").fetchone()[0]
+    if found > SCHEMA_VERSION:
+        raise SchemaTooNewError(
+            f"database schema version {found} is newer than this code supports "
+            f"(version {SCHEMA_VERSION}). Use a matching version of bce, or "
+            f"recreate the database with `bce init` against a new --db path."
+        )
     conn.executescript(_SCHEMA)
+    added = _apply_additive_columns(conn)
+    conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION:d}")
     conn.commit()
+    return added
