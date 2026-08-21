@@ -64,23 +64,46 @@ def structure_pattern(texts: list[str]) -> str:
 
 MAX_QUOTE_CHARS = 200
 MAX_QUOTES = 5
+MAX_RETAINED_FRACTION = 0.25
 
 
 def select_quotes(texts: list[str]) -> list[str]:
     """Up to MAX_QUOTES capped sentences, chosen as representative of register.
 
     Spec §10.3: derived features and short illustrative quotes only. This is the
-    only place source prose is retained, and it is bounded twice — by count and
-    by length.
+    only place source prose is retained, and it is bounded three times — by count,
+    by length per quote, and by total fraction of source.
 
     Returns sentences closest to the mean length, up to MAX_QUOTES. Each sentence
-    is truncated to MAX_QUOTE_CHARS to ensure stored quotes never exceed the
-    privacy bound.
+    is truncated to MAX_QUOTE_CHARS. Total retained characters must not exceed
+    MAX_RETAINED_FRACTION (25%) of the combined source length. If even a single
+    quote exceeds that threshold, returns empty list rather than storing an
+    oversized excerpt.
     """
     sentences = [s.strip() for text in texts for s in _sentences(text) if s.strip()]
     if not sentences:
         return []
 
+    # Calculate combined source length for proportional cap
+    source_length = sum(len(text) for text in texts)
+    max_retained = int(source_length * MAX_RETAINED_FRACTION)
+
     mean = statistics.fmean([len(_words(s)) for s in sentences])
     ranked = sorted(sentences, key=lambda s: abs(len(_words(s)) - mean))
-    return [s[:MAX_QUOTE_CHARS] for s in ranked[:MAX_QUOTES]]
+
+    # Truncate each quote and check proportional constraint
+    capped_quotes = [s[:MAX_QUOTE_CHARS] for s in ranked[:MAX_QUOTES]]
+
+    # Check if any single quote exceeds the proportional limit
+    if any(len(q) > max_retained for q in capped_quotes):
+        return []
+
+    # Retain quotes in ranking order until total would exceed proportional cap
+    result = []
+    total_retained = 0
+    for quote in capped_quotes:
+        if total_retained + len(quote) <= max_retained:
+            result.append(quote)
+            total_retained += len(quote)
+
+    return result
