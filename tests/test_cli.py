@@ -88,18 +88,158 @@ def test_import_missing_csv_file_returns_1(tmp_path, capsys):
 
 
 def test_import_csv_with_quoted_newline(tmp_path):
-    """CSV with a quoted field containing a newline should count correctly."""
+    """CSV with a quoted field containing a newline should count correctly.
+
+    The embedded newline moved from the domain cell to the name cell: a domain
+    cell of "acme.com\\nand more notes" is not a hostname and is now rejected
+    by normalization (I5), which would hide what this test is about — that
+    csv.DictReader counts this as one row, not two.
+    """
     p = tmp_path / "t.db"
     cli.cmd_init(str(p))
     csv_file = tmp_path / "in.csv"
-    # CSV with a quoted field containing an embedded newline
-    csv_content = 'name,domain\nAcme,"acme.com\nand more notes"\n'
+    csv_content = 'name,domain\n"Acme\nBrokerage",acme.com\n'
     csv_file.write_text(csv_content)
-    # csv.DictReader correctly parses this as 1 row (not 2 lines)
     assert cli.cmd_import(str(p), str(csv_file)) == 0
     conn = db.connect(str(p))
     # Should have 1 broker, not be refused
     assert conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"] == 1
+
+
+# --- I3: header variants must not import silently as zero rows ---------------
+
+def test_import_accepts_capitalized_headers(tmp_path, capsys):
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    csv_file = tmp_path / "in.csv"
+    csv_file.write_text("Name,Domain\nAcme,acme.com\n")
+    assert cli.cmd_import(str(p), str(csv_file)) == 0
+    assert "imported 1 brokers" in capsys.readouterr().out
+    conn = db.connect(str(p))
+    assert conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"] == 1
+
+
+def test_import_accepts_excel_utf8_bom(tmp_path):
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    csv_file = tmp_path / "in.csv"
+    csv_file.write_text("name,domain\nAcme,acme.com\n", encoding="utf-8-sig")
+    assert cli.cmd_import(str(p), str(csv_file)) == 0
+    conn = db.connect(str(p))
+    assert conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"] == 1
+
+
+def test_import_accepts_space_after_comma_in_header(tmp_path):
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    csv_file = tmp_path / "in.csv"
+    csv_file.write_text("name, domain\nAcme,acme.com\n")
+    assert cli.cmd_import(str(p), str(csv_file)) == 0
+    conn = db.connect(str(p))
+    assert conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"] == 1
+
+
+def test_import_wrong_headers_fails_loudly(tmp_path, capsys):
+    """A CSV with no name/domain column must not look like an empty import."""
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    csv_file = tmp_path / "in.csv"
+    csv_file.write_text("company,website\nAcme,acme.com\n")
+    rc = cli.cmd_import(str(p), str(csv_file))
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "company" in out and "website" in out
+    assert "imported" not in out
+
+
+def test_import_warns_about_unusable_domain_cell(tmp_path, capsys):
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    csv_file = tmp_path / "in.csv"
+    csv_file.write_text("name,domain\nGood,acme.com\nBad,call me for the site\n")
+    assert cli.cmd_import(str(p), str(csv_file)) == 0
+    out = capsys.readouterr().out
+    assert "call me for the site" in out
+    assert "imported 1 brokers" in out
+
+
+# --- I4: the cap counts new brokers, not CSV rows ---------------------------
+
+def test_reimporting_the_master_list_plus_one_is_not_capped(tmp_path, capsys):
+    """A cumulative master list must stay importable (spec §5 Stage 1)."""
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    master = "name,domain\n" + "".join(f"B{i},b{i}.com\n" for i in range(30))
+    first = tmp_path / "master.csv"
+    first.write_text(master)
+    assert cli.cmd_import(str(p), str(first)) == 0
+
+    second = tmp_path / "master2.csv"
+    second.write_text(master + "New,new.com\n")
+    rc = cli.cmd_import(str(p), str(second))
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    conn = db.connect(str(p))
+    assert conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"] == 31
+
+
+def test_cap_still_refuses_and_inserts_nothing_when_all_rows_are_new(tmp_path, capsys):
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    seed = tmp_path / "seed.csv"
+    seed.write_text("name,domain\n" + "".join(f"S{i},s{i}.com\n" for i in range(40)))
+    assert cli.cmd_import(str(p), str(seed)) == 0
+
+    more = tmp_path / "more.csv"
+    more.write_text("name,domain\n" + "".join(f"M{i},m{i}.com\n" for i in range(11)))
+    rc = cli.cmd_import(str(p), str(more))
+    assert rc == 1
+    assert "cap" in capsys.readouterr().out.lower()
+    conn = db.connect(str(p))
+    assert conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"] == 40
+
+
+# --- I5: requalify -----------------------------------------------------------
+
+def test_requalify_one_domain_clears_the_verdict(tmp_path, capsys):
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    conn = db.connect(str(p))
+    discover.import_csv(conn, "name,domain\nAcme,acme.com\n")
+    conn.execute(
+        "UPDATE broker SET qualified=0, qualified_reason='unreachable_or_disallowed'"
+    )
+    conn.commit()
+
+    assert cli.cmd_requalify(str(p), "https://www.acme.com/") == 0
+    assert "cleared 1" in capsys.readouterr().out
+    conn = db.connect(str(p))
+    assert len(discover.unqualified_brokers(conn, limit=10)) == 1
+
+
+def test_requalify_all_rejected(tmp_path):
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    conn = db.connect(str(p))
+    discover.import_csv(conn, "name,domain\nA,a.com\nB,b.com\n")
+    conn.execute("UPDATE broker SET qualified=0")
+    conn.commit()
+    assert cli.cmd_requalify(str(p)) == 0
+    conn = db.connect(str(p))
+    assert len(discover.unqualified_brokers(conn, limit=10)) == 2
+
+
+def test_requalify_unknown_domain_returns_1(tmp_path, capsys):
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    assert cli.cmd_requalify(str(p), "nope.com") == 1
+    assert "no broker found" in capsys.readouterr().out
+
+
+def test_main_routes_requalify(tmp_path):
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    assert cli.main(["--db", str(p), "requalify"]) == 0
 
 
 def test_unqualified_brokers_filters_correctly(tmp_path):
