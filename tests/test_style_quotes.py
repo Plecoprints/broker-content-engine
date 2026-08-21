@@ -68,30 +68,44 @@ def test_length_cap_truncates_individual_quotes():
     """Verify the length cap (MAX_QUOTE_CHARS) actually truncates long sentences.
 
     This test ensures that each quote is individually capped at MAX_QUOTE_CHARS.
+    The long sentence has a moderate word count (close to the mean) but exceeds
+    200 chars, so truncation is demonstrable when it is selected.
     """
-    # Create a very long sentence (1500+ chars) and a large source so the proportional
-    # cap doesn't reject it entirely. The source must be large: 1500 / 0.25 = 6000 chars.
-    long_sentence = "A " + "very " * 300 + "long sentence."  # ~1500 chars, ~300 words
-    padding = "Padding sentence. " * 100  # Add filler to reach ~6000 char source total
-
-    texts = [padding + long_sentence]
+    # Build a fixture where the long sentence ranks high by exact word count matching.
+    # Create 20 sentences with exactly 12 words each (matching long sentence word count).
+    # Long sentence: 12 words using very long words (15+ chars), exceeding 200 chars.
+    # All sentences have distance 0.0, so top 5 in document order get selected.
+    # Place long sentence first to ensure selection.
+    normal_sentences = [
+        f"Number {i} here now see this sentence text about content and topic. "
+        for i in range(20)  # Each has exactly 12 words
+    ]
+    # Long sentence: 12 words with very long words (15+ chars), exceeding 200 chars
+    long_sentence = " ".join([
+        "Antidisestablishmentarianism", "internationalization",
+        "electromagnetically", "photoelectrically", "telecommunications",
+        "counterrevolutionary", "characteristically", "unconstitutionality",
+        "counterintelligence", "transformationally", "interdisciplinary",
+        "uncharacteristically."
+    ])
+    # Place long sentence first so it's selected in top 5 (stable sort on ties)
+    texts = [long_sentence + " " + " ".join(normal_sentences)]
 
     quotes = select_quotes(texts)
-
-    # Must return at least one quote
-    assert len(quotes) > 0
 
     # Every quote must respect the per-quote length cap
     for quote in quotes:
         assert len(quote) <= MAX_QUOTE_CHARS
 
-    # Check if the very long sentence appears in the results. It may or may not,
-    # depending on its distance from the mean. But IF it does, it must be truncated.
-    long_quote_found = [q for q in quotes if "very" in q]
-    if long_quote_found:
-        long_quote = long_quote_found[0]
-        # Verify it was truncated (not the full long sentence)
-        assert len(long_quote) < len(long_sentence)
+    # The long sentence should be selected because its word count (13 words) is
+    # close to the mean word count of the moderate sentences (12 words), and it
+    # is placed early in the document, ensuring selection in the top 5.
+    long_quote_found = [q for q in quotes if "Antidis" in q]
+    assert len(long_quote_found) > 0, "Long sentence with near-mean word count should be selected"
+
+    long_quote = long_quote_found[0]
+    # Verify it was truncated to exactly MAX_QUOTE_CHARS (proving truncation occurred)
+    assert len(long_quote) == MAX_QUOTE_CHARS, "Long sentence must be truncated to exactly MAX_QUOTE_CHARS"
 
 
 def test_proportional_cap_limits_retained_fraction():
