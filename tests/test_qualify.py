@@ -25,6 +25,9 @@ def test_unreachable_homepage_fails_qualification():
     verdict = qualify.qualify_broker(conn, bid, FakeFetcher({}))
     assert verdict["qualified"] is False
     assert verdict["reason"] == "unreachable_or_disallowed"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_editorial"] is None
+    assert row["has_newsletter"] is None
 
 
 def test_below_threshold_fails():
@@ -33,6 +36,9 @@ def test_below_threshold_fails():
     verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
     assert verdict["qualified"] is False
     assert verdict["reason"] == "below_length_threshold"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_editorial"] == 1
+    assert row["has_newsletter"] == 0
 
 
 def test_no_publishing_channel_fails():
@@ -60,6 +66,7 @@ def test_affinity_recorded_but_does_not_affect_verdict():
     pages = {"https://acme.com/": '<a href="/news">News</a> Sunreef for sale, 30 ft'}
     verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
     assert verdict["qualified"] is False
+    assert verdict["reason"] == "below_length_threshold"
     row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
     assert row["sunreef_affinity"] == "lists_inventory"
     assert "Sunreef" in row["affinity_evidence"]

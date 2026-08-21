@@ -19,6 +19,11 @@ from bce.detectors import (
 MIN_LENGTH_FT = 60
 
 
+def _tri(value):
+    """Preserve None ("never looked") instead of collapsing it to 0."""
+    return None if value is None else (1 if value else 0)
+
+
 def _save(conn, broker_id, *, qualified, reason, robots_allowed,
           affinity, evidence, segment_evidence, has_editorial,
           has_newsletter, newsletter_evidence):
@@ -29,7 +34,7 @@ def _save(conn, broker_id, *, qualified, reason, robots_allowed,
         (
             1 if qualified else 0, reason, 1 if robots_allowed else 0,
             affinity, evidence, segment_evidence,
-            1 if has_editorial else 0, 1 if has_newsletter else 0,
+            _tri(has_editorial), _tri(has_newsletter),
             newsletter_evidence, broker_id,
         ),
     )
@@ -48,8 +53,8 @@ def qualify_broker(conn: sqlite3.Connection, broker_id: int, fetcher) -> dict:
         return _save(
             conn, broker_id, qualified=False, reason="unreachable_or_disallowed",
             robots_allowed=fetcher.robots_allows(url), affinity="unknown",
-            evidence=None, segment_evidence=None, has_editorial=False,
-            has_newsletter=False, newsletter_evidence=None,
+            evidence=None, segment_evidence=None, has_editorial=None,
+            has_newsletter=None, newsletter_evidence=None,
         )
 
     affinity, evidence = detect_sunreef_affinity(html)
