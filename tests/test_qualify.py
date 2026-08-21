@@ -134,7 +134,12 @@ def test_editorial_only_broker_passes():
 # --- I6: spec §4's 12-month editorial recency ---------------------------------
 
 def test_stale_editorial_does_not_qualify():
-    """A journal whose last post is years old is not a publishing channel."""
+    """A journal whose last post is years old is not a publishing channel
+    right now -- but it is not the *absence* of one either. The reviewer's
+    Finding 2: a broker with a dormant journal has positive evidence of a
+    channel, so it must not share `no_publishing_channel` with a broker who
+    has no editorial URLs at all -- it gets its own reason, `editorial_stale`.
+    """
     conn, bid = _conn_with_broker()
     pages = {
         "https://acme.com/": '<a href="/journal">Journal</a> Our 80 ft fleet',
@@ -142,7 +147,7 @@ def test_stale_editorial_does_not_qualify():
     }
     verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
     assert verdict["qualified"] is False
-    assert verdict["reason"] == "no_publishing_channel"
+    assert verdict["reason"] == "editorial_stale"
     row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
     assert row["has_editorial"] == 0
     assert row["editorial_last_post"] == (
@@ -283,6 +288,61 @@ def test_first_editorial_url_dating_cleanly_costs_exactly_one_fetch():
     qualify.qualify_broker(conn, bid, fetcher)
     # Homepage + exactly one editorial fetch — never touches /guides.
     assert fetcher.requested == ["https://acme.com/", "https://acme.com/blog"]
+
+
+# --- Finding 3 (review round 2): a stale first date must not shadow a ------
+# --- fresh one found later -------------------------------------------------
+
+def test_stale_first_editorial_url_does_not_shadow_a_fresh_second_url():
+    """Stopping at the first *parseable* date (even if stale) trusted
+    find_editorial_urls' DOM order again -- an evergreen page with a years-
+    old timestamp, listed first, must not shadow an actually-updated blog
+    listed second. The loop must keep going past a stale date and qualify on
+    the fresher one it finds."""
+    conn, bid = _conn_with_broker()
+    pages = {
+        "https://acme.com/": (
+            '<a href="/guides">Guides</a> <a href="/blog">Blog</a> Our 80 ft fleet'
+        ),
+        "https://acme.com/guides": _dated_post(1200),
+        "https://acme.com/blog": _dated_post(30),
+    }
+    fetcher = FakeFetcher(pages)
+    verdict = qualify.qualify_broker(conn, bid, fetcher)
+    assert verdict["qualified"] is True
+    assert verdict["reason"] == "passed"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_editorial"] == 1
+    assert row["editorial_last_post"] == (date.today() - timedelta(days=30)).isoformat()
+    assert fetcher.requested == [
+        "https://acme.com/", "https://acme.com/guides", "https://acme.com/blog",
+    ]
+
+
+def test_all_stale_editorial_urls_record_the_most_recent_one():
+    """When none of the tried URLs are fresh, the *most recent* stale date
+    is recorded and judged -- not simply the first one encountered."""
+    conn, bid = _conn_with_broker()
+    pages = {
+        "https://acme.com/": (
+            '<a href="/journal">Journal</a> <a href="/guides">Guides</a>'
+            ' <a href="/blog">Blog</a> Our 80 ft fleet'
+        ),
+        "https://acme.com/journal": _dated_post(1500),
+        "https://acme.com/guides": _dated_post(500),  # the most recent stale one
+        "https://acme.com/blog": _dated_post(1000),
+    }
+    fetcher = FakeFetcher(pages)
+    verdict = qualify.qualify_broker(conn, bid, fetcher)
+    assert verdict["qualified"] is False
+    assert verdict["reason"] == "editorial_stale"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["editorial_last_post"] == (date.today() - timedelta(days=500)).isoformat()
+    # All three tried; MAX_EDITORIAL_URLS_TRIED bounds it at 3.
+    assert fetcher.requested == [
+        "https://acme.com/", "https://acme.com/journal",
+        "https://acme.com/guides", "https://acme.com/blog",
+    ]
 
 
 # --- C1: detectors must see extracted text, not raw markup -------------------

@@ -66,12 +66,20 @@ def _editorial_recency(fetcher, editorial_urls, *, today=None):
 
     A link to a journal proves a link, not a publication, so editorial URLs
     are fetched through the same polite fetcher and dated, in the order
-    `find_editorial_urls` returned them (DOM order, not freshness order).
-    Up to `MAX_EDITORIAL_URLS_TRIED` are tried, stopping at the first that
-    yields *any* date — fresh or stale, since that already settles the
-    freshness verdict. Later URLs are only tried when an earlier one could
-    not be dated at all (unfetchable, or no date declared), so a broker whose
-    first URL dates cleanly still costs exactly one fetch.
+    `find_editorial_urls` returned them (DOM order, not freshness order —
+    that ordering is unreliable, which is exactly why a single fetch is not
+    trusted here).
+
+    Up to `MAX_EDITORIAL_URLS_TRIED` are tried, but the loop only stops early
+    on a **fresh** date — trusting the first *parseable* date, even a stale
+    one, would repeat the same DOM-order trust that motivated trying more
+    than one URL in the first place: an evergreen `/guides` page with a
+    years-old timestamp would shadow an actually-updated blog listed after
+    it. So a stale date keeps the search going (bounded at
+    `MAX_EDITORIAL_URLS_TRIED`), and the **most recent** date found across
+    all tried URLs is what gets recorded and judged. This still costs
+    exactly one fetch in the common case — first URL dates fresh — since
+    that is the only case that returns early.
 
     Freshness is only claimed when a date is actually found: if none of the
     tried URLs yield a date, the channel is recorded as `unknown` rather than
@@ -79,6 +87,10 @@ def _editorial_recency(fetcher, editorial_urls, *, today=None):
     """
     if not editorial_urls:
         return False, None
+
+    today = today or date.today()
+    most_recent_posted: date | None = None
+    most_recent_found: str | None = None
 
     for editorial_url in editorial_urls[:MAX_EDITORIAL_URLS_TRIED]:
         page = fetcher.get(editorial_url)
@@ -93,8 +105,14 @@ def _editorial_recency(fetcher, editorial_urls, *, today=None):
         except ValueError:
             continue
 
-        age_days = ((today or date.today()) - posted).days
-        return age_days <= EDITORIAL_MAX_AGE_DAYS, found
+        if (today - posted).days <= EDITORIAL_MAX_AGE_DAYS:
+            return True, found  # fresh -- settles the verdict, stop here
+
+        if most_recent_posted is None or posted > most_recent_posted:
+            most_recent_posted, most_recent_found = posted, found
+
+    if most_recent_found is not None:
+        return False, most_recent_found  # stale, but the most recent found
 
     return False, EDITORIAL_DATE_UNKNOWN
 
@@ -138,15 +156,24 @@ def qualify_broker(conn: sqlite3.Connection, broker_id: int, fetcher) -> dict:
         )
 
     if not has_editorial and not has_newsletter:
-        # An editorial URL was found but no publication date could be pinned
-        # down (unfetchable, or no date declared on any tried URL) — distinct
-        # from genuinely having no channel at all. A stale-but-dated section
-        # still counts as "no channel", since that verdict is determined, not
-        # undetermined.
-        if editorial_urls and editorial_last_post == EDITORIAL_DATE_UNKNOWN:
+        # `editorial_last_post` fully distinguishes the three shapes of "no
+        # qualifying channel", since `_editorial_recency` only returns None
+        # when no editorial URLs were found at all:
+        #   - None                    -> no editorial URLs at all: genuinely
+        #                                 no channel exists.
+        #   - EDITORIAL_DATE_UNKNOWN   -> editorial URLs found, but no date
+        #                                 could be pinned down on any of them.
+        #   - a real ISO date         -> a date *was* found, just stale. The
+        #                                 broker has a channel -- it is
+        #                                 dormant, not absent -- so this must
+        #                                 not share `no_publishing_channel`
+        #                                 with the genuinely-no-channel case.
+        if editorial_last_post is None:
+            reason = "no_publishing_channel"
+        elif editorial_last_post == EDITORIAL_DATE_UNKNOWN:
             reason = "editorial_recency_undetermined"
         else:
-            reason = "no_publishing_channel"
+            reason = "editorial_stale"
         return _save(conn, broker_id, qualified=False, reason=reason, **verdict)
 
     return _save(conn, broker_id, qualified=True, reason="passed", **verdict)
