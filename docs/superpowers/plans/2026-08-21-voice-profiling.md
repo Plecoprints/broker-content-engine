@@ -605,7 +605,9 @@ class ProfileClient:
 Run: `.venv/bin/python -m pytest tests/test_llm.py -v`
 Expected: PASS, 8 tests.
 
-Pressure test to run before you trust this: `anthropic.APIConnectionError` and `anthropic.APIStatusError` — confirm both are subclasses of `anthropic.APIError`, exactly as `httpx.InvalidURL` turned out NOT to be a subclass of `httpx.HTTPError` earlier in this project. If either is not caught by the tuple above, widen it and say so in your report. Do not assume the hierarchy.
+**Exception hierarchy — verified, do not re-derive.** The plan author checked against the installed SDK: `APIConnectionError`, `APIStatusError`, `RateLimitError`, `APITimeoutError`, and `BadRequestError` are all subclasses of `anthropic.APIError`. So `except anthropic.APIError` alone is sufficient and the tuple above is merely explicit — keep either. This check exists because `httpx.InvalidURL` turned out NOT to be a subclass of `httpx.HTTPError` earlier in this project, and that assumption would have halted a crawl on one bad link.
+
+One thing you DO need to verify: that a `stop_reason` of `"refusal"` cannot reach `json.loads` and produce a misleading `{}`. Add a test for it if the SDK can return a refusal with no text block, and say what you found.
 
 - [ ] **Step 5: Commit**
 
