@@ -2,7 +2,30 @@
 
 Carried out of the SDD workspace before it was deleted. Ordered by what I would fix first.
 
-## Required before the shortlist is trusted unattended
+## FIXED (2026-08-21)
+
+Items 1 and 2 below were fixed and reviewed clean. Summary of what landed:
+
+- **Undeterminable editorial date** now has its own reason `editorial_recency_undetermined`, and a
+  stale-but-dated channel has a third reason `editorial_stale` — a broker with a dormant journal is no
+  longer told they have no channel. `_editorial_recency` tries up to 3 editorial URLs, returns early
+  only on a *fresh* date, and otherwise records the **most recent** date found (real `date`
+  comparison, not string ordering). One fetch when the first URL dates cleanly. `cmd_list` now prints
+  `editorial=`, `last_post=`, `newsletter=`.
+- **Newsletter email co-signal** is DOM-scoped: the subscribe word and the `<input type="email">` must
+  sit inside the same `<form>` node's own subtree. The first attempt used a regex block match, which a
+  reviewer proved reopened the same defect — a lazy `.*?</section>` spans everything nested inside a
+  broad wrapper. `<section>` was dropped as a container for exactly that reason.
+
+165 tests. Two cosmetic items came out of that review and remain open:
+
+- `test_cookie_banner_and_email_input_under_shared_div_ancestor_does_not_count` does not discriminate
+  the fix it is named for — the old regex never matched `<div>`, so it passed before and after. It
+  documents correct behaviour but guards nothing. Rewrite it around a `<section>` or `<form>` ancestor.
+- `_form_evidence` builds a third `HTMLParser` tree per page (after `_markup_without_code` and
+  `find_editorial_urls`). Only reached when cheaper checks miss; note if throughput ever matters.
+
+## Was required before the shortlist is trusted unattended — now fixed, kept for the record
 
 These two distort qualification on realistic broker markup. They do **not** block spec §13's manual
 pilot (one hand-picked broker), which is the intended next step.
