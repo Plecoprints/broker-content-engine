@@ -46,6 +46,44 @@ def test_list_prints_broker(tmp_path, capsys):
     assert "Acme" in capsys.readouterr().out
 
 
+# --- Residual A3: cmd_list must surface channel state -------------------------
+
+def test_list_shows_channel_state_and_editorial_date(tmp_path, capsys):
+    """An operator must be able to tell 'no channel' apart from 'we could not
+    date the channel' — both cases previously printed identically because
+    cmd_list dropped has_editorial/has_newsletter/editorial_last_post."""
+    p = tmp_path / "t.db"
+    cli.cmd_init(str(p))
+    conn = db.connect(str(p))
+    discover.import_csv(conn, "name,domain\nAcme,acme.com\nBeta,beta.com\n")
+    conn.execute(
+        "UPDATE broker SET qualified=0, qualified_reason='editorial_recency_undetermined', "
+        "has_editorial=0, has_newsletter=0, editorial_last_post='unknown' "
+        "WHERE domain='acme.com'"
+    )
+    conn.execute(
+        "UPDATE broker SET qualified=1, qualified_reason='passed', "
+        "has_editorial=1, has_newsletter=0, editorial_last_post='2026-05-01' "
+        "WHERE domain='beta.com'"
+    )
+    conn.commit()
+
+    assert cli.cmd_list(str(p)) == 0
+    out = capsys.readouterr().out
+    lines = {ln.split()[0]: ln for ln in out.splitlines()}
+
+    # Acme: editorial link found but undated -> distinguishable from "no channel".
+    assert "editorial=no" in lines["Acme"]
+    assert "unknown" in lines["Acme"]
+
+    # Beta: editorial dated and fresh -> the actual date is shown.
+    assert "editorial=yes" in lines["Beta"]
+    assert "2026-05-01" in lines["Beta"]
+
+    # Every broker list_brokers returns still prints, regardless of affinity.
+    assert "Acme" in out and "Beta" in out
+
+
 def test_main_returns_2_with_no_command():
     assert cli.main([]) == 2
 

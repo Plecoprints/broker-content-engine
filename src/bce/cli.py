@@ -88,11 +88,38 @@ def cmd_requalify(db_path: str, domain: str | None = None) -> int:
     return 0
 
 
+def _channel_label(value: int | None) -> str:
+    """yes/no/? for a tri-state has_editorial/has_newsletter column (A3).
+
+    `None` means Stage 2 never looked (unreachable/disallowed homepage), which
+    is distinct from having looked and found nothing.
+    """
+    if value is None:
+        return "?"
+    return "yes" if value else "no"
+
+
 def cmd_list(db_path: str) -> int:
+    """Print one line per broker (spec §4: every broker `list_brokers`
+    returns must print — no filtering, grouping, or tiering by affinity).
+
+    Alongside the existing name/domain/affinity/state columns, this also
+    surfaces which publishing channels were found and the editorial date (or
+    `unknown`/`-`), so an operator can tell "no channel" apart from "we could
+    not date the channel" (Residual A3) instead of `editorial_last_post`
+    being written and read by nothing.
+    """
     conn = db.connect(db_path)
     for row in discover.list_brokers(conn):
         state = {1: "qualified", 0: "rejected"}.get(row["qualified"], "pending")
-        print(f"{row['name']:<30} {row['domain']:<28} {row['sunreef_affinity']:<16} {state}")
+        editorial = _channel_label(row["has_editorial"])
+        newsletter = _channel_label(row["has_newsletter"])
+        last_post = row["editorial_last_post"] or "-"
+        print(
+            f"{row['name']:<30} {row['domain']:<28} {row['sunreef_affinity']:<16} "
+            f"{state:<10} editorial={editorial:<3} last_post={last_post:<10} "
+            f"newsletter={newsletter}"
+        )
     return 0
 
 
