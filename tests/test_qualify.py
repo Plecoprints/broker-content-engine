@@ -151,7 +151,13 @@ def test_stale_editorial_does_not_qualify():
 
 
 def test_undeterminable_editorial_date_is_recorded_and_does_not_qualify():
-    """No date found -> recorded as 'unknown', not assumed fresh."""
+    """No date found -> recorded as 'unknown', not assumed fresh.
+
+    Residual A1: this is the undetermined case (editorial URL found, no date
+    pinned down, no newsletter), so the reason must name that specifically —
+    not the generic 'no_publishing_channel', which asserts no channel exists
+    at all.
+    """
     conn, bid = _conn_with_broker()
     pages = {
         "https://acme.com/": '<a href="/news">News</a> Our 80 ft fleet',
@@ -159,17 +165,19 @@ def test_undeterminable_editorial_date_is_recorded_and_does_not_qualify():
     }
     verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
     assert verdict["qualified"] is False
-    assert verdict["reason"] == "no_publishing_channel"
+    assert verdict["reason"] == "editorial_recency_undetermined"
     row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
     assert row["has_editorial"] == 0
     assert row["editorial_last_post"] == qualify.EDITORIAL_DATE_UNKNOWN
 
 
 def test_unfetchable_editorial_page_is_recorded_as_unknown():
+    """An editorial URL that cannot even be fetched is also 'undetermined',
+    not 'no channel' — the link was there, it just couldn't be dated."""
     conn, bid = _conn_with_broker()
     pages = {"https://acme.com/": '<a href="/blog">Blog</a> Our 80 ft fleet'}
     verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
-    assert verdict["reason"] == "no_publishing_channel"
+    assert verdict["reason"] == "editorial_recency_undetermined"
     row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
     assert row["editorial_last_post"] == qualify.EDITORIAL_DATE_UNKNOWN
 
@@ -200,6 +208,80 @@ def test_editorial_page_is_fetched_through_the_same_fetcher():
         "https://acme.com/blog": _dated_post(5),
     })
     qualify.qualify_broker(conn, bid, fetcher)
+    assert fetcher.requested == ["https://acme.com/", "https://acme.com/blog"]
+
+
+# --- Residual A: undeterminable editorial date must not silently reject -----
+
+def test_editorial_undetermined_and_no_newsletter_gets_its_own_reason():
+    """A1: editorial links exist, no determinable date, no newsletter."""
+    conn, bid = _conn_with_broker()
+    pages = {
+        "https://acme.com/": '<a href="/blog">Blog</a> Our 80 ft fleet',
+        "https://acme.com/blog": _undated_post(),
+    }
+    verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
+    assert verdict["qualified"] is False
+    assert verdict["reason"] == "editorial_recency_undetermined"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["qualified"] == 0
+    assert row["qualified_reason"] == "editorial_recency_undetermined"
+
+
+def test_editorial_undetermined_but_with_newsletter_still_passes():
+    """A1 + spec §4 OR: the same broker, but with a newsletter, still passes
+    with reason 'passed' — the disjunction is unchanged by the new reason."""
+    conn, bid = _conn_with_broker()
+    pages = {
+        "https://acme.com/": (
+            '<a href="/blog">Blog</a> Our 80 ft fleet.'
+            ' <p>Join our newsletter.</p>'
+        ),
+        "https://acme.com/blog": _undated_post(),
+    }
+    verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
+    assert verdict["qualified"] is True
+    assert verdict["reason"] == "passed"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_newsletter"] == 1
+    assert row["editorial_last_post"] == qualify.EDITORIAL_DATE_UNKNOWN
+
+
+def test_second_editorial_url_is_tried_when_first_has_no_date():
+    """A2: a nav reading 'Guides | Blog' must not stop at the evergreen page."""
+    conn, bid = _conn_with_broker()
+    pages = {
+        "https://acme.com/": (
+            '<a href="/guides">Guides</a> <a href="/blog">Blog</a> Our 80 ft fleet'
+        ),
+        "https://acme.com/guides": _undated_post(),
+        "https://acme.com/blog": _dated_post(30),
+    }
+    fetcher = FakeFetcher(pages)
+    verdict = qualify.qualify_broker(conn, bid, fetcher)
+    assert verdict["qualified"] is True
+    assert verdict["reason"] == "passed"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_editorial"] == 1
+    assert row["editorial_last_post"] == (date.today() - timedelta(days=30)).isoformat()
+    assert fetcher.requested == [
+        "https://acme.com/", "https://acme.com/guides", "https://acme.com/blog",
+    ]
+
+
+def test_first_editorial_url_dating_cleanly_costs_exactly_one_fetch():
+    """A2: no wasted fetches when the first URL already yields a date."""
+    conn, bid = _conn_with_broker()
+    pages = {
+        "https://acme.com/": (
+            '<a href="/blog">Blog</a> <a href="/guides">Guides</a> Our 80 ft fleet'
+        ),
+        "https://acme.com/blog": _dated_post(10),
+        "https://acme.com/guides": _undated_post(),
+    }
+    fetcher = FakeFetcher(pages)
+    qualify.qualify_broker(conn, bid, fetcher)
+    # Homepage + exactly one editorial fetch — never touches /guides.
     assert fetcher.requested == ["https://acme.com/", "https://acme.com/blog"]
 
 

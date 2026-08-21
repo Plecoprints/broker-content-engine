@@ -54,31 +54,49 @@ def _save(conn, broker_id, *, qualified, reason, robots_allowed,
     return {"qualified": qualified, "reason": reason}
 
 
+#: Cap on how many editorial URLs `_editorial_recency` will fetch per broker.
+#: `find_editorial_urls` returns DOM order, not freshness order, so a nav
+#: reading "Guides | Blog" would date the evergreen page first and never look
+#: further if only the first URL were tried.
+MAX_EDITORIAL_URLS_TRIED = 3
+
+
 def _editorial_recency(fetcher, editorial_urls, *, today=None):
     """(fresh_editorial_channel, recorded_last_post) for spec §4's 12 months.
 
-    A link to a journal proves a link, not a publication, so the first editorial
-    URL is fetched through the same polite fetcher and dated. Freshness is only
-    claimed when a date is actually found: an undatable section is recorded as
-    `unknown` and does not qualify, rather than being assumed fresh.
+    A link to a journal proves a link, not a publication, so editorial URLs
+    are fetched through the same polite fetcher and dated, in the order
+    `find_editorial_urls` returned them (DOM order, not freshness order).
+    Up to `MAX_EDITORIAL_URLS_TRIED` are tried, stopping at the first that
+    yields *any* date — fresh or stale, since that already settles the
+    freshness verdict. Later URLs are only tried when an earlier one could
+    not be dated at all (unfetchable, or no date declared), so a broker whose
+    first URL dates cleanly still costs exactly one fetch.
+
+    Freshness is only claimed when a date is actually found: if none of the
+    tried URLs yield a date, the channel is recorded as `unknown` rather than
+    assumed fresh.
     """
     if not editorial_urls:
         return False, None
 
-    page = fetcher.get(editorial_urls[0])
-    if page is None:
-        return False, EDITORIAL_DATE_UNKNOWN
+    for editorial_url in editorial_urls[:MAX_EDITORIAL_URLS_TRIED]:
+        page = fetcher.get(editorial_url)
+        if page is None:
+            continue
 
-    found = detect_last_post_date(page)
-    if not found:
-        return False, EDITORIAL_DATE_UNKNOWN
-    try:
-        posted = date.fromisoformat(found)
-    except ValueError:
-        return False, EDITORIAL_DATE_UNKNOWN
+        found = detect_last_post_date(page)
+        if not found:
+            continue
+        try:
+            posted = date.fromisoformat(found)
+        except ValueError:
+            continue
 
-    age_days = ((today or date.today()) - posted).days
-    return age_days <= EDITORIAL_MAX_AGE_DAYS, found
+        age_days = ((today or date.today()) - posted).days
+        return age_days <= EDITORIAL_MAX_AGE_DAYS, found
+
+    return False, EDITORIAL_DATE_UNKNOWN
 
 
 def qualify_broker(conn: sqlite3.Connection, broker_id: int, fetcher) -> dict:
@@ -120,9 +138,15 @@ def qualify_broker(conn: sqlite3.Connection, broker_id: int, fetcher) -> dict:
         )
 
     if not has_editorial and not has_newsletter:
-        return _save(
-            conn, broker_id, qualified=False, reason="no_publishing_channel",
-            **verdict,
-        )
+        # An editorial URL was found but no publication date could be pinned
+        # down (unfetchable, or no date declared on any tried URL) — distinct
+        # from genuinely having no channel at all. A stale-but-dated section
+        # still counts as "no channel", since that verdict is determined, not
+        # undetermined.
+        if editorial_urls and editorial_last_post == EDITORIAL_DATE_UNKNOWN:
+            reason = "editorial_recency_undetermined"
+        else:
+            reason = "no_publishing_channel"
+        return _save(conn, broker_id, qualified=False, reason=reason, **verdict)
 
     return _save(conn, broker_id, qualified=True, reason="passed", **verdict)
