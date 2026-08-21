@@ -47,8 +47,13 @@ def test_visible_text_drops_markup_script_and_style():
 
 
 def test_length_from_visible_text_ignores_attribute_and_script_numbers():
-    """Raw markup used to yield 300 (a script value) instead of 55."""
-    assert detect_max_length_ft(RAW_HTML) == 300      # documents the trap
+    """Raw markup used to yield 300 (a script value) instead of 55.
+
+    Only asserting the raw-HTML value is wrong (not pinning it to exactly
+    300): that leaves room for a later tightening of the regex to strip
+    attribute/script numbers without failing a test on an improvement.
+    """
+    assert detect_max_length_ft(RAW_HTML) != 55       # documents the trap
     assert detect_max_length_ft(visible_text(RAW_HTML)) == 55
 
 
