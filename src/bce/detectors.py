@@ -8,13 +8,14 @@ real defect (a raw response body makes `width='150'` look like a 150ft vessel):
 
 - `detect_max_length_ft`, `detect_sunreef_affinity` take **extracted text** —
   human-visible prose, no markup, no inline script. `visible_text()` derives it.
-- `find_editorial_urls` and `detect_newsletter` take **raw HTML**, because
-  they read attributes (`href`, `input type=email`). `detect_newsletter`
-  strips `<script>`/`<style>` itself.
+- `find_editorial_urls`, `detect_newsletter`, `detect_last_post_date` take
+  **raw HTML**, because they read attributes (`href`, `input type=email`,
+  `<time datetime>`). They strip `<script>`/`<style>` themselves.
 """
 import re
 from urllib.parse import urljoin, urlparse
 
+from htmldate import find_date
 from selectolax.parser import HTMLParser
 
 _CODE_TAGS = ("script", "style", "noscript", "template")
@@ -177,3 +178,20 @@ def detect_newsletter(html: str) -> tuple[bool, str]:
             return True, _evidence(markup, m.start())
 
     return False, ""
+
+
+def detect_last_post_date(html: str) -> str | None:
+    """Publication date of an editorial page as `YYYY-MM-DD`, or None.
+
+    Spec §4 qualifies an editorial section only when it was *updated within the
+    last 12 months*, so a link to a journal is not enough — something has to
+    have been published behind it. `extensive_search=False` keeps this to
+    dates the page actually declares (metadata, `<time>`), rather than
+    guessing from a footer copyright year.
+    """
+    if not html:
+        return None
+    try:
+        return find_date(html, outputformat="%Y-%m-%d", extensive_search=False)
+    except Exception:  # htmldate raises a variety of parse errors on junk input
+        return None

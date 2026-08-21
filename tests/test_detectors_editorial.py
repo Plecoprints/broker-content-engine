@@ -1,4 +1,4 @@
-from bce.detectors import find_editorial_urls
+from bce.detectors import detect_last_post_date, find_editorial_urls
 
 
 def test_finds_blog_link_and_absolutizes():
@@ -64,3 +64,27 @@ def test_rejects_protocol_relative_offsite():
     """Protocol-relative URLs to other hosts are rejected."""
     html = '<a href="//other.com/blog">Blog</a>'
     assert find_editorial_urls(html, "https://acme.com") == []
+
+
+# --- I6: editorial recency (spec §4 — updated within the last 12 months) -----
+
+def test_detects_date_from_time_element():
+    html = '<html><body><article><time datetime="2026-07-15">July</time></article></body></html>'
+    assert detect_last_post_date(html) == "2026-07-15"
+
+
+def test_detects_date_from_article_metadata():
+    html = (
+        '<html><head><meta property="article:published_time" '
+        'content="2019-03-02T10:00:00Z"></head><body><h1>Old post</h1></body></html>'
+    )
+    assert detect_last_post_date(html) == "2019-03-02"
+
+
+def test_returns_none_when_no_date_is_declared():
+    assert detect_last_post_date("<html><body><p>No dates here.</p></body></html>") is None
+
+
+def test_returns_none_on_empty_or_junk_input():
+    assert detect_last_post_date("") is None
+    assert detect_last_post_date("\x00\x01 not html at all") is None

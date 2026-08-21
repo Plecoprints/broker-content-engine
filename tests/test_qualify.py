@@ -126,6 +126,81 @@ def test_editorial_only_broker_passes():
     row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
     assert row["has_editorial"] == 1
     assert row["has_newsletter"] == 0
+    assert row["editorial_last_post"] == (
+        date.today() - timedelta(days=200)
+    ).isoformat()
+
+
+# --- I6: spec §4's 12-month editorial recency ---------------------------------
+
+def test_stale_editorial_does_not_qualify():
+    """A journal whose last post is years old is not a publishing channel."""
+    conn, bid = _conn_with_broker()
+    pages = {
+        "https://acme.com/": '<a href="/journal">Journal</a> Our 80 ft fleet',
+        "https://acme.com/journal": _dated_post(1200),
+    }
+    verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
+    assert verdict["qualified"] is False
+    assert verdict["reason"] == "no_publishing_channel"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_editorial"] == 0
+    assert row["editorial_last_post"] == (
+        date.today() - timedelta(days=1200)
+    ).isoformat()
+
+
+def test_undeterminable_editorial_date_is_recorded_and_does_not_qualify():
+    """No date found -> recorded as 'unknown', not assumed fresh."""
+    conn, bid = _conn_with_broker()
+    pages = {
+        "https://acme.com/": '<a href="/news">News</a> Our 80 ft fleet',
+        "https://acme.com/news": _undated_post(),
+    }
+    verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
+    assert verdict["qualified"] is False
+    assert verdict["reason"] == "no_publishing_channel"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_editorial"] == 0
+    assert row["editorial_last_post"] == qualify.EDITORIAL_DATE_UNKNOWN
+
+
+def test_unfetchable_editorial_page_is_recorded_as_unknown():
+    conn, bid = _conn_with_broker()
+    pages = {"https://acme.com/": '<a href="/blog">Blog</a> Our 80 ft fleet'}
+    verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
+    assert verdict["reason"] == "no_publishing_channel"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["editorial_last_post"] == qualify.EDITORIAL_DATE_UNKNOWN
+
+
+def test_stale_editorial_still_qualifies_on_newsletter():
+    """Spec §4 v0.5: the newsletter is independently qualifying."""
+    conn, bid = _conn_with_broker()
+    pages = {
+        "https://acme.com/": (
+            '<a href="/blog">Blog</a> Our 80 ft fleet.'
+            ' <p>Join our newsletter.</p>'
+        ),
+        "https://acme.com/blog": _dated_post(1200),
+    }
+    verdict = qualify.qualify_broker(conn, bid, FakeFetcher(pages))
+    assert verdict["qualified"] is True
+    assert verdict["reason"] == "passed"
+    row = conn.execute("SELECT * FROM broker WHERE id=?", (bid,)).fetchone()
+    assert row["has_editorial"] == 0
+    assert row["has_newsletter"] == 1
+
+
+def test_editorial_page_is_fetched_through_the_same_fetcher():
+    """Only get()/robots_allows() may be used, and the journal must be dated."""
+    conn, bid = _conn_with_broker()
+    fetcher = FakeFetcher({
+        "https://acme.com/": '<a href="/blog">Blog</a> Our 80 ft fleet',
+        "https://acme.com/blog": _dated_post(5),
+    })
+    qualify.qualify_broker(conn, bid, fetcher)
+    assert fetcher.requested == ["https://acme.com/", "https://acme.com/blog"]
 
 
 # --- C1: detectors must see extracted text, not raw markup -------------------
