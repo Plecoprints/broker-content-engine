@@ -60,3 +60,27 @@ def structure_pattern(texts: list[str]) -> str:
     mean_words = statistics.fmean([w for _, w in per_text_stats])
 
     return f"{round(mean_paras)} paragraphs/article, {round(mean_words)} words/para"
+
+
+MAX_QUOTE_CHARS = 200
+MAX_QUOTES = 5
+
+
+def select_quotes(texts: list[str]) -> list[str]:
+    """Up to MAX_QUOTES capped sentences, chosen as representative of register.
+
+    Spec §10.3: derived features and short illustrative quotes only. This is the
+    only place source prose is retained, and it is bounded twice — by count and
+    by length.
+
+    Returns sentences closest to the mean length, up to MAX_QUOTES. Each sentence
+    is truncated to MAX_QUOTE_CHARS to ensure stored quotes never exceed the
+    privacy bound.
+    """
+    sentences = [s.strip() for text in texts for s in _sentences(text) if s.strip()]
+    if not sentences:
+        return []
+
+    mean = statistics.fmean([len(_words(s)) for s in sentences])
+    ranked = sorted(sentences, key=lambda s: abs(len(_words(s)) - mean))
+    return [s[:MAX_QUOTE_CHARS] for s in ranked[:MAX_QUOTES]]
