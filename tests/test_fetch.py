@@ -12,6 +12,19 @@ def test_user_agent_identifies_and_carries_contact_url():
     assert "http" in USER_AGENT
 
 
+def test_default_client_carries_the_identifying_user_agent():
+    """The branch production actually uses: Fetcher() with no injected client.
+
+    Every other test injects a client, so nothing covered this line — and a
+    regression here means ~50 broker sites get crawled as python-httpx/0.x,
+    breaching spec §10.2's identifying-User-Agent requirement.
+    """
+    f = Fetcher()
+    assert f._client.headers["user-agent"] == USER_AGENT
+    assert f._client.follow_redirects is True
+    f._client.close()
+
+
 def test_robots_allows_when_permitted():
     def handler(request):
         return httpx.Response(200, text="User-agent: *\nAllow: /")
