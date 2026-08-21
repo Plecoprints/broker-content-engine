@@ -109,7 +109,30 @@ def test_get_returns_none_if_redirect_target_disallowed():
         if request.url.path == "/page":
             # Redirect to a disallowed path
             return httpx.Response(301, headers={"location": "https://acme.com/private/target"})
+        # The disallowed path: serve content if reached
         return httpx.Response(200, text="target content")
 
-    f = Fetcher(min_delay=0, client=_client(handler))
+    # Must use follow_redirects=True to exercise the redirect fix
+    f = Fetcher(
+        min_delay=0,
+        client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),
+    )
     assert f.get("https://acme.com/page") is None
+
+
+def test_get_returns_body_if_redirect_target_allowed():
+    def handler(request):
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nAllow: /")
+        if request.url.path == "/page":
+            # Redirect to an allowed path
+            return httpx.Response(301, headers={"location": "https://acme.com/public/target"})
+        # The allowed path: serve content if reached
+        return httpx.Response(200, text="target content from /public/target")
+
+    # Must use follow_redirects=True to exercise the redirect fix
+    f = Fetcher(
+        min_delay=0,
+        client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),
+    )
+    assert f.get("https://acme.com/page") == "target content from /public/target"
