@@ -46,6 +46,16 @@ def test_structure_pattern_computes_per_article_mean():
     assert structure_pattern(texts) == "3 paragraphs/article, 1 words/para"
 
 
+def test_structure_pattern_rounds_fractional_mean():
+    # Two texts with 3 and 4 paragraphs: mean = 3.5 → round(3.5) = 4
+    # (Python banker's rounding: round-half-to-even)
+    texts = [
+        "A.\n\nB.\n\nC.",  # 3 paragraphs, 1 word each
+        "X.\n\nY.\n\nZ.\n\nW.",  # 4 paragraphs, 1 word each
+    ]
+    assert structure_pattern(texts) == "4 paragraphs/article, 1 words/para"
+
+
 def test_structure_pattern_skips_empty_texts():
     # Mixed list: one normal text and one empty string
     texts = [

@@ -59,4 +59,4 @@ def structure_pattern(texts: list[str]) -> str:
     mean_paras = statistics.fmean([n for n, _ in per_text_stats])
     mean_words = statistics.fmean([w for _, w in per_text_stats])
 
-    return f"{int(mean_paras)} paragraphs/article, {int(mean_words)} words/para"
+    return f"{round(mean_paras)} paragraphs/article, {round(mean_words)} words/para"
