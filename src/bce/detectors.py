@@ -1,12 +1,49 @@
 """Pure detectors used by Stage 2 qualification (spec §5).
 
-Every function here takes text and returns a value — no network, no I/O — so
-qualification logic is testable without crawling anything.
+No network, no I/O — qualification logic is testable without crawling
+anything.
+
+**Input shapes.** Two different shapes are used here and mixing them up is a
+real defect (a raw response body makes `width='150'` look like a 150ft vessel):
+
+- `detect_max_length_ft`, `detect_sunreef_affinity` take **extracted text** —
+  human-visible prose, no markup, no inline script. `visible_text()` derives it.
+- `find_editorial_urls` and `detect_newsletter` take **raw HTML**, because
+  they read attributes (`href`, `input type=email`). `detect_newsletter`
+  strips `<script>`/`<style>` itself.
 """
 import re
 from urllib.parse import urljoin, urlparse
 
 from selectolax.parser import HTMLParser
+
+_CODE_TAGS = ("script", "style", "noscript", "template")
+
+
+def _parse_without_code(html: str) -> HTMLParser:
+    tree = HTMLParser(html or "")
+    tree.strip_tags(list(_CODE_TAGS))
+    return tree
+
+
+def visible_text(html: str) -> str:
+    """Human-visible prose from an HTTP response body.
+
+    Markup, inline `<script>` and `<style>` are removed, so numbers that only
+    exist in attributes or JavaScript cannot be mistaken for prose (spec §4 —
+    the >=60ft gate is read off what the broker actually says).
+    """
+    node = _parse_without_code(html).body
+    if node is None:  # malformed markup with no body
+        return ""
+    return node.text(separator=" ")
+
+
+def _markup_without_code(html: str) -> str:
+    """Raw markup with `<script>`/`<style>` removed, attributes intact."""
+    node = _parse_without_code(html).body
+    return node.html if node is not None else ""
+
 
 _MIN_FT = 20
 _MAX_FT = 400
@@ -95,23 +132,48 @@ def find_editorial_urls(html: str, base_url: str) -> list[str]:
     return found
 
 
-_NEWSLETTER_HINTS = ("newsletter", "subscribe", "mailing list", "email updates")
+_NEWSLETTER_HINTS = ("newsletter", "mailing list", "email updates", "email list")
 _NEWSLETTER_RE = re.compile(
     r"\b(?:"
     + "|".join(h.replace(" ", r"[\s\-_]+") for h in _NEWSLETTER_HINTS)
     + r")s?\b",
     re.IGNORECASE,
 )
+# "subscribe" on its own is not evidence of an email newsletter: it is also
+# `store.subscribe(fn)`, "Subscribe to our YouTube channel", and privacy-policy
+# boilerplate. It counts only alongside an email co-signal.
+_SUBSCRIBE_RE = re.compile(r"\bsubscrib(?:e|ing|er|ers|ption|ptions)\b", re.IGNORECASE)
+_EMAIL_INPUT_RE = re.compile(r"<input\b[^>]*type\s*=\s*['\"]?email", re.IGNORECASE)
+_EMAIL_WORD_RE = re.compile(r"\b(?:e-?mail|inbox)\b", re.IGNORECASE)
+
+
+def _evidence(source: str, at: int) -> str:
+    start = max(0, at - _EVIDENCE_CHARS // 2)
+    return source[start:start + _EVIDENCE_CHARS].strip()
 
 
 def detect_newsletter(html: str) -> tuple[bool, str]:
     """Does this broker run an email newsletter? (spec §4)
 
     A newsletter is a publishing channel in its own right, not a weaker
-    substitute for a blog — it reaches an opted-in list directly.
+    substitute for a blog — it reaches an opted-in list directly. Because a
+    newsletter alone qualifies a broker (spec §4 v0.5), a false positive costs
+    an outreach slot on a channel that does not exist, so this is deliberately
+    precision-first: an explicit newsletter/mailing-list phrase, or the word
+    "subscribe" backed by an email co-signal (an `<input type="email">`, or the
+    word "email"/"inbox" nearby).
     """
-    match = _NEWSLETTER_RE.search(html)
-    if match is None:
-        return False, ""
-    start = max(0, match.start() - _EVIDENCE_CHARS // 2)
-    return True, html[start:start + _EVIDENCE_CHARS].strip()
+    markup = _markup_without_code(html)
+
+    match = _NEWSLETTER_RE.search(markup)
+    if match is not None:
+        return True, _evidence(markup, match.start())
+
+    has_email_input = _EMAIL_INPUT_RE.search(markup) is not None
+    for m in _SUBSCRIBE_RE.finditer(markup):
+        window_start = max(0, m.start() - _PROXIMITY_CHARS)
+        window = markup[window_start:m.end() + _PROXIMITY_CHARS]
+        if has_email_input or _EMAIL_WORD_RE.search(window):
+            return True, _evidence(markup, m.start())
+
+    return False, ""
