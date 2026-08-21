@@ -22,13 +22,37 @@ def test_typical_word_count_is_the_median():
     assert typical_word_count(["a b", "a b c d", "a b c d e f"]) == 4
 
 
+def test_typical_word_count_rounds_fractional_median():
+    # Even-length list: median of [2, 5] is 3.5, should round to 4
+    assert typical_word_count(["a b", "a b c d e"]) == 4
+
+
 def test_typical_word_count_handles_no_input():
     assert typical_word_count([]) == 0
 
 
 def test_structure_pattern_reports_paragraphs_and_density():
     text = "First para here.\n\nSecond para here.\n\nThird para here."
-    assert structure_pattern([text]) == "3 paragraphs, 3 words/para"
+    assert structure_pattern([text]) == "3 paragraphs/article, 3 words/para"
+
+
+def test_structure_pattern_computes_per_article_mean():
+    # Three texts with 2, 3, 4 paragraphs respectively (mean 3)
+    texts = [
+        "A.\n\nB.",  # 2 paragraphs, 1 word each
+        "X.\n\nY.\n\nZ.",  # 3 paragraphs, 1 word each
+        "P.\n\nQ.\n\nR.\n\nS.",  # 4 paragraphs, 1 word each
+    ]
+    assert structure_pattern(texts) == "3 paragraphs/article, 1 words/para"
+
+
+def test_structure_pattern_skips_empty_texts():
+    # Mixed list: one normal text and one empty string
+    texts = [
+        "First.\n\nSecond.",  # 2 paragraphs, 1 word each
+        "",  # Empty, should be skipped
+    ]
+    assert structure_pattern(texts) == "2 paragraphs/article, 1 words/para"
 
 
 def test_structure_pattern_handles_no_input():
@@ -37,4 +61,22 @@ def test_structure_pattern_handles_no_input():
 
 def test_structure_pattern_ignores_blank_runs():
     text = "One two.\n\n\n\nThree four."
-    assert structure_pattern([text]) == "2 paragraphs, 2 words/para"
+    assert structure_pattern([text]) == "2 paragraphs/article, 2 words/para"
+
+
+@pytest.mark.parametrize(
+    "text,expected_sentence_count",
+    [
+        # Decimal: $1.5m should not split (period not followed by capital after space)
+        ("Asking $1.5m. She is ready.", 2),
+        # Abbreviation: e.g. should not split (followed by lowercase)
+        ("Delivery e.g. next spring is typical.", 1),
+        # Abbreviation: 60 ft. should split (followed by capital after space)
+        ("She is 60 ft. Built in 2019.", 2),
+    ],
+)
+def test_avg_sentence_length_sentence_splitting_edge_cases(text, expected_sentence_count):
+    # These test the _SENTENCE_END regex behavior on real yacht-industry phrases
+    from bce.style import _sentences
+    sentences = _sentences(text)
+    assert len(sentences) == expected_sentence_count

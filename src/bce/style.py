@@ -37,14 +37,26 @@ def typical_word_count(texts: list[str]) -> int:
     counts = [len(_words(t)) for t in texts if _words(t)]
     if not counts:
         return 0
-    return int(statistics.median(counts))
+    return round(statistics.median(counts))
 
 
 def structure_pattern(texts: list[str]) -> str:
-    paragraphs = [
-        p for text in texts for p in _PARA_SPLIT.split(text.strip()) if p.strip()
-    ]
-    if not paragraphs:
+    # Compute per-article statistics, skipping texts with zero paragraphs
+    per_text_stats = []
+    for text in texts:
+        paragraphs = [
+            p for p in _PARA_SPLIT.split(text.strip()) if p.strip()
+        ]
+        if paragraphs:  # Only include texts with at least one paragraph
+            num_paras = len(paragraphs)
+            words_per_para = [len(_words(p)) for p in paragraphs]
+            per_text_stats.append((num_paras, statistics.fmean(words_per_para)))
+
+    if not per_text_stats:
         return "unknown"
-    density = int(statistics.fmean([len(_words(p)) for p in paragraphs]))
-    return f"{len(paragraphs)} paragraphs, {density} words/para"
+
+    # Compute mean paragraphs per article and mean words per paragraph
+    mean_paras = statistics.fmean([n for n, _ in per_text_stats])
+    mean_words = statistics.fmean([w for _, w in per_text_stats])
+
+    return f"{int(mean_paras)} paragraphs/article, {int(mean_words)} words/para"
