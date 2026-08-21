@@ -146,11 +146,37 @@ _NEWSLETTER_RE = re.compile(
 _SUBSCRIBE_RE = re.compile(r"\bsubscrib(?:e|ing|er|ers|ption|ptions)\b", re.IGNORECASE)
 _EMAIL_INPUT_RE = re.compile(r"<input\b[^>]*type\s*=\s*['\"]?email", re.IGNORECASE)
 _EMAIL_WORD_RE = re.compile(r"\b(?:e-?mail|inbox)\b", re.IGNORECASE)
+# The enclosing container a "subscribe" mention and its email input have to
+# share for the co-signal to count (Residual B). Non-greedy + DOTALL so a
+# `<form>`/`<section>` that spans multiple lines is still matched as one
+# block; a same-tag backreference keeps a `<form>` from being closed by an
+# unrelated `</section>`.
+_BLOCK_RE = re.compile(r"<(form|section)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
 
 
 def _evidence(source: str, at: int) -> str:
     start = max(0, at - _EVIDENCE_CHARS // 2)
     return source[start:start + _EVIDENCE_CHARS].strip()
+
+
+def _email_input_local_to(markup: str, start: int, end: int) -> bool:
+    """Is an `<input type="email">` local to a subscribe match at [start, end)?
+
+    "Local" means either inside the same proximity window used for the
+    "email"/"inbox" word co-signal, or inside the same enclosing
+    `<form>`/`<section>` — a page-global `has_email_input` check would treat
+    a near-universal contact-form input as evidence for a "Subscribe to our
+    YouTube channel" link in an unrelated footer.
+    """
+    window_start = max(0, start - _PROXIMITY_CHARS)
+    window = markup[window_start:end + _PROXIMITY_CHARS]
+    if _EMAIL_INPUT_RE.search(window):
+        return True
+
+    for block in _BLOCK_RE.finditer(markup):
+        if block.start() <= start < block.end() and _EMAIL_INPUT_RE.search(block.group()):
+            return True
+    return False
 
 
 def detect_newsletter(html: str) -> tuple[bool, str]:
@@ -161,8 +187,12 @@ def detect_newsletter(html: str) -> tuple[bool, str]:
     newsletter alone qualifies a broker (spec §4 v0.5), a false positive costs
     an outreach slot on a channel that does not exist, so this is deliberately
     precision-first: an explicit newsletter/mailing-list phrase, or the word
-    "subscribe" backed by an email co-signal (an `<input type="email">`, or the
-    word "email"/"inbox" nearby).
+    "subscribe" backed by a *local* email co-signal — an `<input
+    type="email">` in the same proximity window or the same enclosing
+    `<form>`/`<section>`, or the word "email"/"inbox" nearby. An email input
+    is near-universal (contact forms) and footers routinely carry a social
+    "Subscribe", so the co-signal must be local to the match, not merely
+    present anywhere on the page.
     """
     markup = _markup_without_code(html)
 
@@ -170,11 +200,10 @@ def detect_newsletter(html: str) -> tuple[bool, str]:
     if match is not None:
         return True, _evidence(markup, match.start())
 
-    has_email_input = _EMAIL_INPUT_RE.search(markup) is not None
     for m in _SUBSCRIBE_RE.finditer(markup):
         window_start = max(0, m.start() - _PROXIMITY_CHARS)
         window = markup[window_start:m.end() + _PROXIMITY_CHARS]
-        if has_email_input or _EMAIL_WORD_RE.search(window):
+        if _EMAIL_WORD_RE.search(window) or _email_input_local_to(markup, m.start(), m.end()):
             return True, _evidence(markup, m.start())
 
     return False, ""

@@ -79,6 +79,72 @@ def test_evidence_is_capped():
     assert len(evidence) <= 160
 
 
+# --- Residual B: the email co-signal must be local to the match --------------
+
+_FILLER = "<p>" + ("Lorem ipsum dolor sit amet. " * 12) + "</p>"
+
+
+def test_youtube_subscribe_with_unrelated_email_input_elsewhere_does_not_count():
+    """A social 'Subscribe' link must not be backed by a contact-form email
+    input elsewhere on the page — the false positive Residual B calls out."""
+    html = (
+        "<html><body>"
+        "<footer><a href='https://youtube.com/c/acme'>Subscribe to our "
+        "YouTube channel</a></footer>"
+        f"{_FILLER}"
+        "<section class='contact'><form>"
+        "<input type='email' name='contact_email'>"
+        "</form></section>"
+        "</body></html>"
+    )
+    assert detect_newsletter(html)[0] is False
+
+
+def test_cookie_banner_subscribe_wording_with_unrelated_email_input_does_not_count():
+    """A cookie/privacy banner mentioning subscribe/unsubscribe must not be
+    backed by an email input elsewhere on the page."""
+    html = (
+        "<html><body>"
+        "<div class='cookie-banner'>You may subscribe or unsubscribe from "
+        "our communications at any time.</div>"
+        f"{_FILLER}"
+        "<section class='contact'><form>"
+        "<input type='email' name='contact_email'>"
+        "</form></section>"
+        "</body></html>"
+    )
+    assert detect_newsletter(html)[0] is False
+
+
+def test_genuine_signup_block_with_email_input_in_same_form_counts():
+    """A real signup block — subscribe wording and an email input sharing one
+    <form> — still counts, even when they are farther apart than the bare
+    proximity window."""
+    html = (
+        "<html><body>"
+        "<section class='hero'><h1>Yachts</h1></section>"
+        "<form class='signup'>"
+        "<p>Subscribe to stay in the loop.</p>"
+        f"{_FILLER}"
+        "<input type='email' name='signup_email'>"
+        "</form>"
+        "</body></html>"
+    )
+    present, evidence = detect_newsletter(html)
+    assert present is True
+    assert "subscrib" in evidence.lower()
+
+
+def test_self_sufficient_hints_still_work_without_any_email_input():
+    """The explicit newsletter/mailing-list phrases keep qualifying on their
+    own, unaffected by the co-signal locality fix."""
+    assert detect_newsletter("<p>Join our mailing list.</p>")[0] is True
+    assert detect_newsletter("<p>Sign up for email updates.</p>")[0] is True
+    assert detect_newsletter("<p>Our email list is the best way to follow "
+                              "us.</p>")[0] is True
+    assert detect_newsletter("<p>Read our newsletter.</p>")[0] is True
+
+
 def test_newsletter_is_not_an_editorial_url():
     """Guards Task 5's fix: /newsletter must not count as an editorial section,
     while still being detected as a newsletter channel."""
