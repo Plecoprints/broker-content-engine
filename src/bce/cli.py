@@ -1,5 +1,7 @@
 """CLI entry point. Enforces the spec §6 volume cap."""
 import argparse
+import csv
+import io
 import sys
 from pathlib import Path
 
@@ -18,11 +20,16 @@ def cmd_init(db_path: str) -> int:
 
 
 def cmd_import(db_path: str, csv_path: str) -> int:
+    try:
+        text = Path(csv_path).read_text()
+    except FileNotFoundError:
+        print(f"error: CSV file not found: {csv_path}")
+        return 1
+
     conn = db.connect(db_path)
     db.init_schema(conn)
     existing = conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"]
-    text = Path(csv_path).read_text()
-    incoming = max(0, len(text.strip().splitlines()) - 1)
+    incoming = sum(1 for _ in csv.DictReader(io.StringIO(text)))
     if existing + incoming > MAX_BROKERS:
         print(
             f"refused: {existing}+{incoming} exceeds the {MAX_BROKERS}-broker cap "
@@ -36,9 +43,7 @@ def cmd_import(db_path: str, csv_path: str) -> int:
 def cmd_qualify(db_path: str, limit: int = DEFAULT_QUALIFY_LIMIT) -> int:
     conn = db.connect(db_path)
     fetcher = Fetcher()
-    rows = conn.execute(
-        "SELECT id, domain FROM broker WHERE qualified IS NULL LIMIT ?", (limit,)
-    ).fetchall()
+    rows = discover.unqualified_brokers(conn, limit)
     for row in rows:
         verdict = qualify.qualify_broker(conn, row["id"], fetcher)
         print(f"{row['domain']}: {verdict['reason']}")

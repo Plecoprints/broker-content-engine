@@ -46,3 +46,10 @@ def list_brokers(
         rows,
         key=lambda r: (_AFFINITY_RANK.get(r["sunreef_affinity"], 2), r["name"]),
     )
+
+
+def unqualified_brokers(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
+    """Brokers that have not yet been through Stage 2 qualification."""
+    return conn.execute(
+        "SELECT id, domain FROM broker WHERE qualified IS NULL LIMIT ?", (limit,)
+    ).fetchall()
