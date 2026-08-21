@@ -146,12 +146,6 @@ _NEWSLETTER_RE = re.compile(
 _SUBSCRIBE_RE = re.compile(r"\bsubscrib(?:e|ing|er|ers|ption|ptions)\b", re.IGNORECASE)
 _EMAIL_INPUT_RE = re.compile(r"<input\b[^>]*type\s*=\s*['\"]?email", re.IGNORECASE)
 _EMAIL_WORD_RE = re.compile(r"\b(?:e-?mail|inbox)\b", re.IGNORECASE)
-# The enclosing container a "subscribe" mention and its email input have to
-# share for the co-signal to count (Residual B). Non-greedy + DOTALL so a
-# `<form>`/`<section>` that spans multiple lines is still matched as one
-# block; a same-tag backreference keeps a `<form>` from being closed by an
-# unrelated `</section>`.
-_BLOCK_RE = re.compile(r"<(form|section)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
 
 
 def _evidence(source: str, at: int) -> str:
@@ -159,24 +153,31 @@ def _evidence(source: str, at: int) -> str:
     return source[start:start + _EVIDENCE_CHARS].strip()
 
 
-def _email_input_local_to(markup: str, start: int, end: int) -> bool:
-    """Is an `<input type="email">` local to a subscribe match at [start, end)?
+def _form_evidence(markup: str) -> str | None:
+    """Evidence text from a `<form>` whose own subtree carries both a
+    subscribe mention and an email input, or None.
 
-    "Local" means either inside the same proximity window used for the
-    "email"/"inbox" word co-signal, or inside the same enclosing
-    `<form>`/`<section>` — a page-global `has_email_input` check would treat
-    a near-universal contact-form input as evidence for a "Subscribe to our
-    YouTube channel" link in an unrelated footer.
+    Deliberately DOM-based, not a lazy tag-matching regex: a hand-written
+    `<(form|section)\\b.*?</\\1>` pattern matches from an *outer* open tag to
+    the first literal closing tag, so it spans everything nested inside —
+    including an unrelated footer "Subscribe to our YouTube channel" and a
+    distant contact-form input that merely share a broad `<section>`
+    wrapper. `HTMLParser` gives each `<form>` node's own, correctly-nested
+    subtree HTML, so a match here means the two signals genuinely live in
+    the same form — not merely under the same broad container. Restricted
+    to `<form>` (not `<section>`/`<div>`) because a form is a narrow,
+    purpose-built container; a `<section>` routinely is not, which is
+    exactly the shape that reopened this defect.
+
+    Evidence is sliced from the form's own HTML, not the full-page markup:
+    a match's offset is only meaningful within the string it was found in.
     """
-    window_start = max(0, start - _PROXIMITY_CHARS)
-    window = markup[window_start:end + _PROXIMITY_CHARS]
-    if _EMAIL_INPUT_RE.search(window):
-        return True
-
-    for block in _BLOCK_RE.finditer(markup):
-        if block.start() <= start < block.end() and _EMAIL_INPUT_RE.search(block.group()):
-            return True
-    return False
+    for node in HTMLParser(markup).css("form"):
+        form_html = node.html or ""
+        subscribe_match = _SUBSCRIBE_RE.search(form_html)
+        if subscribe_match and _EMAIL_INPUT_RE.search(form_html):
+            return _evidence(form_html, subscribe_match.start())
+    return None
 
 
 def detect_newsletter(html: str) -> tuple[bool, str]:
@@ -187,10 +188,13 @@ def detect_newsletter(html: str) -> tuple[bool, str]:
     newsletter alone qualifies a broker (spec §4 v0.5), a false positive costs
     an outreach slot on a channel that does not exist, so this is deliberately
     precision-first: an explicit newsletter/mailing-list phrase, or the word
-    "subscribe" backed by a *local* email co-signal — an `<input
-    type="email">` in the same proximity window or the same enclosing
-    `<form>`/`<section>`, or the word "email"/"inbox" nearby. An email input
-    is near-universal (contact forms) and footers routinely carry a social
+    "subscribe" backed by a *local* email co-signal — the word "email"/
+    "inbox" nearby, an `<input type="email">` in the same proximity window,
+    or an `<input type="email">` inside the same `<form>` subtree (checked
+    via the DOM, not a regex "enclosing block", so a `<form>`/`<section>`
+    cannot be conflated with an unrelated container that happens to wrap
+    both a decoy mention and a distant, unrelated input). An email input is
+    near-universal (contact forms) and footers routinely carry a social
     "Subscribe", so the co-signal must be local to the match, not merely
     present anywhere on the page.
     """
@@ -203,8 +207,12 @@ def detect_newsletter(html: str) -> tuple[bool, str]:
     for m in _SUBSCRIBE_RE.finditer(markup):
         window_start = max(0, m.start() - _PROXIMITY_CHARS)
         window = markup[window_start:m.end() + _PROXIMITY_CHARS]
-        if _EMAIL_WORD_RE.search(window) or _email_input_local_to(markup, m.start(), m.end()):
+        if _EMAIL_WORD_RE.search(window) or _EMAIL_INPUT_RE.search(window):
             return True, _evidence(markup, m.start())
+
+    evidence = _form_evidence(markup)
+    if evidence is not None:
+        return True, evidence
 
     return False, ""
 

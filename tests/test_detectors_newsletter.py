@@ -116,6 +116,42 @@ def test_cookie_banner_subscribe_wording_with_unrelated_email_input_does_not_cou
     assert detect_newsletter(html)[0] is False
 
 
+def test_youtube_subscribe_and_email_input_under_shared_section_ancestor_does_not_count():
+    """Regression for the reviewer's finding: a broad `<section>` wrapping
+    both an unrelated footer 'Subscribe' link and a distant, unrelated email
+    input must not count merely because they share that outer `<section>` —
+    only a shared `<form>` subtree does. A lazy `<(form|section)\\b.*?</\\1>`
+    regex would match this entire `<section>` as one "block" and treat the
+    unrelated input as local evidence, reopening Residual B."""
+    html = (
+        "<html><body>"
+        "<section class='page'>"
+        "<footer><a href='https://youtube.com/c/acme'>Subscribe to our "
+        "YouTube channel</a></footer>"
+        f"{_FILLER}"
+        "<div class='contact'><input type='email' name='contact_email'></div>"
+        "</section>"
+        "</body></html>"
+    )
+    assert detect_newsletter(html)[0] is False
+
+
+def test_cookie_banner_and_email_input_under_shared_div_ancestor_does_not_count():
+    """Same shape as above with a shared `<div>` ancestor instead of
+    `<section>`, and cookie/privacy banner wording instead of a social link."""
+    html = (
+        "<html><body>"
+        "<div class='wrapper'>"
+        "<div class='cookie-banner'>You may subscribe or unsubscribe from "
+        "our communications at any time.</div>"
+        f"{_FILLER}"
+        "<div class='contact'><input type='email' name='contact_email'></div>"
+        "</div>"
+        "</body></html>"
+    )
+    assert detect_newsletter(html)[0] is False
+
+
 def test_genuine_signup_block_with_email_input_in_same_form_counts():
     """A real signup block — subscribe wording and an email input sharing one
     <form> — still counts, even when they are farther apart than the bare
