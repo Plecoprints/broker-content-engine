@@ -63,9 +63,21 @@ def test_classify_returns_empty_dict_on_api_error():
     assert ProfileClient(client=FakeClient(raises=err)).classify(["text"]) == {}
 
 
+def test_classify_returns_empty_dict_on_non_dict_payload():
+    fake = FakeClient(VALID)
+    fake.messages.payload = None  # json.dumps(None) -> "null", parses to None, not a dict
+    assert ProfileClient(client=fake).classify(["text"]) == {}
+
+
 def test_classify_returns_empty_dict_on_unparseable_response():
     fake = FakeClient(VALID)
-    fake.messages.payload = None  # json.dumps(None) -> "null", not a dict
+
+    def create(**kwargs):
+        fake.messages.calls.append(kwargs)
+        block = type("B", (), {"type": "text", "text": "not json{"})()
+        return type("R", (), {"content": [block], "stop_reason": "end_turn"})()
+
+    fake.messages.create = create
     assert ProfileClient(client=fake).classify(["text"]) == {}
 
 
