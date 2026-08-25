@@ -126,10 +126,14 @@ def cmd_list(db_path: str) -> int:
 
 
 def cmd_profile(db_path: str, limit: int = MAX_PROFILE_CALLS) -> int:
-    if limit > MAX_PROFILE_CALLS:
+    # Both sides, because SQLite treats a negative LIMIT as *unbounded*: an
+    # upper-bound-only guard let `--limit -1` profile every qualified broker (up
+    # to the §6 cap of 50) against a 20-call ceiling. A limit below 1 is also
+    # simply not a request to do any work.
+    if limit < 1 or limit > MAX_PROFILE_CALLS:
         print(
-            f"refused: {limit} exceeds the {MAX_PROFILE_CALLS}-call ceiling "
-            f"(spec section 11.5). Raise it deliberately or lower --limit."
+            f"refused: {limit} is outside the 1-{MAX_PROFILE_CALLS} call ceiling "
+            f"(spec section 11.5). Raise it deliberately or correct --limit."
         )
         return 1
     conn = db.connect(db_path)
@@ -141,8 +145,43 @@ def cmd_profile(db_path: str, limit: int = MAX_PROFILE_CALLS) -> int:
     fetcher = Fetcher()
     profile_client = ProfileClient()
     for row in rows:
-        ok = profile.profile_broker(conn, row["id"], fetcher, profile_client)
-        print(f"{row['domain']}: {'profiled' if ok else 'no articles found'}")
+        result = profile.profile_broker(conn, row["id"], fetcher, profile_client)
+        print(f"{row['domain']}: {_profile_label(result)}")
+    return 0
+
+
+def _profile_label(result) -> str:
+    """What actually happened, including silent degradation (I5).
+
+    A row written with every judgement field NULL — the Claude call errored,
+    refused, or returned something unparseable — used to print `profiled`. It is
+    both wrong and, until `bce reprofile`, unrepairable, so it must not read as
+    success.
+    """
+    if not result:
+        return "no articles found"
+    if not result.classified:
+        return "profiled (statistics only — classification failed)"
+    return "profiled"
+
+
+def cmd_reprofile(db_path: str, domain: str | None = None) -> int:
+    """Clear a stored voice profile so Stage 3 looks again (I3).
+
+    `unprofiled_brokers` selects on row existence, so a broker profiled during an
+    API outage keeps a statistics-only row forever. Mirrors `requalify`.
+    """
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    cleared = discover.clear_voice_profile(conn, domain=domain)
+    if cleared == 0:
+        if domain:
+            print(f"no voice profile found for {domain}")
+            return 1
+        print("no degraded voice profiles to reprofile")
+        return 0
+    scope = domain if domain else "degraded profiles"
+    print(f"cleared {cleared} voice profile(s) for {scope}; run `bce profile` again")
     return 0
 
 
@@ -163,6 +202,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("list")
     p_profile = sub.add_parser("profile")
     p_profile.add_argument("--limit", type=int, default=MAX_PROFILE_CALLS)
+    p_reprofile = sub.add_parser("reprofile")
+    p_reprofile.add_argument(
+        "domain", nargs="?",
+        help="broker domain to reprofile; omit to clear every degraded profile",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "init":
@@ -177,5 +221,7 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_list(args.db)
     if args.command == "profile":
         return cmd_profile(args.db, args.limit)
+    if args.command == "reprofile":
+        return cmd_reprofile(args.db, args.domain)
     print("unknown command", file=sys.stderr)
     return 2

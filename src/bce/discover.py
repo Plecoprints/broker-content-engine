@@ -171,12 +171,57 @@ def clear_qualification(
     return cursor.rowcount
 
 
+#: Warmest first (spec §4). Ordering only: every qualified broker is still
+#: returned and still receives identical treatment — affinity decides position in
+#: the queue and nothing else, which is what keeps §4 compatible with §2's ban on
+#: tiered service. There is no filter or threshold reading this anywhere.
+_AFFINITY_ORDER = (
+    "CASE b.sunreef_affinity WHEN 'lists_inventory' THEN 0 "
+    "WHEN 'mentions' THEN 1 ELSE 2 END, b.name"
+)
+
+
 def unprofiled_brokers(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
-    """Qualified brokers that have no voice profile yet (spec §5 Stage 3)."""
+    """Qualified brokers that have no voice profile yet (spec §5 Stage 3).
+
+    Ordered warmest-first (spec §4): with a 50-broker cap and a 20-call limit,
+    profiling order decides which brokers reach the review queue at all, and §13
+    asks the pilot to run on a high-affinity broker. Alphabetical order made that
+    a coin flip.
+    """
     return conn.execute(
         "SELECT b.id, b.domain FROM broker b "
         "LEFT JOIN voice_profile v ON v.broker_id = b.id "
         "WHERE b.qualified = 1 AND v.broker_id IS NULL "
-        "ORDER BY b.name LIMIT ?",
+        f"ORDER BY {_AFFINITY_ORDER} LIMIT ?",
         (limit,),
     ).fetchall()
+
+
+def clear_voice_profile(
+    conn: sqlite3.Connection, *, domain: str | None = None
+) -> int:
+    """Send brokers back to Stage 3 by deleting their voice profile row (I3).
+
+    `unprofiled_brokers` selects on row *existence*, and `profile_broker` writes a
+    row even when `classify` returned `{}` — an API error, a refusal, or an
+    unparseable payload. Without this, a broker profiled during a transient
+    outage keeps a row whose entire judgement half is NULL, and no command can
+    ever reach the carefully-written upsert to repair it. Same shape as
+    `clear_qualification` (spec §5 Stage 2's `requalify`, for the same reason).
+
+    With no domain, only *degraded* rows are cleared — those with no `register`,
+    which is the field the classifier is required to return. Good profiles are
+    left alone so a bulk repair cannot burn the §11.5 call budget re-doing work.
+    """
+    if domain is not None:
+        target = normalize_domain(domain) or domain.strip().lower()
+        cursor = conn.execute(
+            "DELETE FROM voice_profile WHERE broker_id IN "
+            "(SELECT id FROM broker WHERE domain=?)",
+            (target,),
+        )
+    else:
+        cursor = conn.execute("DELETE FROM voice_profile WHERE register IS NULL")
+    conn.commit()
+    return cursor.rowcount
