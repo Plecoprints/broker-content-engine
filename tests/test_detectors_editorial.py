@@ -1,4 +1,10 @@
-from bce.detectors import detect_last_post_date, find_editorial_urls, find_post_links
+from bce.detectors import (
+    MIN_INDEX_LINKS,
+    detect_last_post_date,
+    find_editorial_urls,
+    find_post_links,
+    looks_like_index,
+)
 
 
 def test_finds_blog_link_and_absolutizes():
@@ -106,9 +112,28 @@ def test_finds_posts_deeper_than_the_index():
     ]
 
 
-def test_ignores_nav_links_at_or_above_the_index_depth():
-    html = '<a href="/about">About</a><a href="/contact">Contact</a><a href="/">Home</a>'
+def test_ignores_nav_links():
+    """Nav is excluded structurally, by region, not by path depth.
+
+    This fixture used to be three bare anchors and relied on `/about` not being
+    deeper than `/journal`. Depth was standing in for "this is chrome", and that
+    proxy is exactly what a flat-permalink index defeats — `/why-beam-matters` is
+    not deeper than `/journal` either. The markup now says what it means.
+    """
+    html = (
+        "<nav><a href='/about'>About</a><a href='/contact'>Contact</a>"
+        "<a href='/'>Home</a></nav><main><p>Journal</p></main>"
+    )
     assert find_post_links(html, INDEX) == []
+
+
+def test_below_the_index_threshold_the_depth_rule_still_applies():
+    """Two in-body links is not a listing, so a long-form page that links to
+    /contact and /about is not mistaken for one."""
+    html = "<main><p>A post that links to <a href='/about'>about</a> and " \
+           "<a href='/contact'>contact</a>.</p></main>"
+    assert find_post_links(html, INDEX) == []
+    assert looks_like_index(html, INDEX) is False
 
 
 def test_accepts_a_dated_path_even_at_the_same_depth():
@@ -150,3 +175,69 @@ def test_deduplicates_and_drops_fragments():
 
 def test_handles_empty_html():
     assert find_post_links("", INDEX) == []
+    assert looks_like_index("", INDEX) is False
+
+
+# --- Blocker: flat /%postname%/ permalinks -----------------------------------
+
+FLAT_INDEX = (
+    "<nav><a href='/about'>About</a></nav>"
+    "<main><h1>Journal</h1>"
+    "<div><a href='/why-beam-matters'>Why beam matters</a><p>Teaser.</p></div>"
+    "<div><a href='/draft-and-the-harbourmaster'>Draft</a><p>Teaser.</p></div>"
+    "<div><a href='/galley-layouts-that-sell'>Galley</a><p>Teaser.</p></div>"
+    "</main>"
+)
+
+
+def test_finds_flat_permalink_posts_that_are_neither_deeper_nor_dated():
+    """WordPress's default /%postname%/: /journal links to /why-beam-matters."""
+    got = find_post_links(FLAT_INDEX, INDEX)
+    assert got == [
+        "https://acme.com/why-beam-matters",
+        "https://acme.com/draft-and-the-harbourmaster",
+        "https://acme.com/galley-layouts-that-sell",
+    ]
+    # None of them would survive the path-shape rule on its own.
+    for url in got:
+        assert len(url.rstrip("/").split("/")) == 4  # https://acme.com/<slug>
+
+
+def test_a_flat_index_is_recognised_structurally():
+    assert looks_like_index(FLAT_INDEX, INDEX) is True
+
+
+def test_index_detection_ignores_chrome_and_offsite_links():
+    """Density is counted in the content region only, so a big nav is not a
+    listing and a page of outbound links is not one either."""
+    chrome = "<nav>" + "".join(
+        f"<a href='/page{i}'>Page {i}</a>" for i in range(10)
+    ) + "</nav><main><p>One long journal entry.</p></main>"
+    assert looks_like_index(chrome, INDEX) is False
+
+    offsite = "<main>" + "".join(
+        f"<a href='https://other.com/{i}'>Partner {i}</a>" for i in range(10)
+    ) + "</main>"
+    assert looks_like_index(offsite, INDEX) is False
+
+
+def test_editorial_sections_do_not_count_toward_index_density():
+    html = "<main>" + "".join(
+        f"<a href='/section{i}'>Section {i}</a>" for i in range(3)
+    ) + "</main>"
+    sections = [f"https://acme.com/section{i}" for i in range(3)]
+    assert looks_like_index(html, INDEX, exclude=sections) is False
+    assert find_post_links(html, INDEX, exclude=sections) == []
+
+
+def test_index_threshold_is_exact():
+    def flat(n):
+        return "<main>" + "".join(
+            f"<a href='/slug-{i}'>Post {i}</a>" for i in range(n)
+        ) + "</main>"
+
+    assert looks_like_index(flat(MIN_INDEX_LINKS - 1), INDEX) is False
+    assert looks_like_index(flat(MIN_INDEX_LINKS), INDEX) is True
+    # Below the threshold the flat links are not posts by the depth rule either.
+    assert find_post_links(flat(MIN_INDEX_LINKS - 1), INDEX) == []
+    assert len(find_post_links(flat(MIN_INDEX_LINKS), INDEX)) == MIN_INDEX_LINKS

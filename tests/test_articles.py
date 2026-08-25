@@ -7,6 +7,7 @@ from bce.articles import (
     collect_broker_articles,
     extract_article_text,
 )
+from bce.detectors import looks_like_index
 
 ARTICLE_HTML = """
 <html><body>
@@ -109,6 +110,18 @@ def test_collect_broker_articles_follows_an_index_to_its_posts():
     assert "Teaser." not in " ".join(got)
 
 
+def test_collect_broker_articles_follows_flat_permalinks():
+    paths = ["/why-beam-matters", "/draft-matters", "/galley-layouts"]
+    pages = {"https://a.invalid/journal": _index_page(paths)}
+    pages.update({f"https://a.invalid{p}": _post_page(p) for p in paths})
+    fetcher = FakeFetcher(pages)
+
+    got = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
+    assert len(got) == 3
+    for path in paths:
+        assert f"https://a.invalid{path}" in fetcher.calls
+
+
 def test_collect_broker_articles_keeps_an_editorial_page_that_is_itself_an_article():
     pages = {"https://a.invalid/journal": _post_page("One long journal page")}
     fetcher = FakeFetcher(pages)
@@ -161,11 +174,17 @@ def test_collect_broker_articles_caps_wasted_post_fetches():
 
 
 def test_a_busy_index_does_not_qualify_as_an_article_on_length_alone():
-    """Forty teaser cards clear any character floor while being pure card titles,
-    so the "page is itself an article" fallback must require *no* post links."""
-    paths = [f"/journal/{i}" for i in range(40)]
+    """Forty teaser cards clear any character floor while being pure card titles.
+
+    The card paths are **root-level slugs**, not `/journal/<n>`: with deeper paths
+    this test would pass on the depth rule alone and prove nothing about
+    structure. Flat permalinks are invisible to path shape, so the only thing
+    keeping this index from being profiled as an article is link density.
+    """
+    paths = [f"/post-{i}" for i in range(40)]
     index = _index_page(paths)
     assert len(extract_article_text(index)) > MIN_ARTICLE_CHARS
+    assert looks_like_index(index, "https://a.invalid/journal") is True
 
     pages = {"https://a.invalid/journal": index}
     pages.update({

@@ -140,6 +140,50 @@ PAGES_2LEVEL = {
     ),
 }
 
+# The same site with WordPress's default /%postname%/ permalinks: /journal links
+# to /why-beam-matters, which is neither deeper than the index nor dated. A
+# path-shape rule finds no posts here, concludes the index is an article, and the
+# teaser blob clears the character floor because teaser text grows with card
+# count. Only the structural (link-density) signal catches this.
+FLAT_JOURNAL_INDEX = """<html><body>
+  <nav><a href="/about">About</a><a href="/contact">Contact</a></nav>
+  <main>
+    <h1>Journal</h1>
+    <div class="card"><a href="/why-beam-matters">Why beam matters</a>
+      <p>Beam matters more than length when the marina is completely full during
+      the height of the Mediterranean season and every berth is spoken for.</p></div>
+    <div class="card"><a href="/draft-and-the-harbourmaster">Draft and the harbourmaster</a>
+      <p>The constraint nobody mentions until it is far too late, because the
+      deposit has already been spent and the itinerary is confirmed.</p></div>
+    <div class="card"><a href="/galley-layouts-that-sell">Galley layouts that sell</a>
+      <p>A guest who cannot see the water while cooking will remember that
+      particular discomfort for years and years afterwards.</p></div>
+    <div class="card"><a href="/resale-value-and-warranties">Resale value and warranties</a>
+      <p>What owners ask about long before they ever ask about coverage terms,
+      and what that says about a ten year ownership horizon.</p></div>
+  </main>
+</body></html>"""
+
+FLAT_HOME = """<html><body>
+  <nav><a href="/journal">Journal</a><a href="/contact">Contact</a></nav>
+  <p>Our 80 ft fleet.</p>
+</body></html>"""
+
+FLAT_PAGES = {
+    "https://acme.invalid/": FLAT_HOME,
+    "https://acme.invalid/journal": FLAT_JOURNAL_INDEX,
+    "https://acme.invalid/why-beam-matters": _post("Why beam matters", POST_BODY),
+    "https://acme.invalid/draft-and-the-harbourmaster": _post(
+        "Draft and the harbourmaster", POST_BODY
+    ),
+    "https://acme.invalid/galley-layouts-that-sell": _post(
+        "Galley layouts that sell", POST_BODY
+    ),
+    "https://acme.invalid/resale-value-and-warranties": _post(
+        "Resale value and warranties", POST_BODY
+    ),
+}
+
 # A journal index whose posts are one-line stubs: the corpus is real HTML and
 # really fetched, but far too thin to describe how anyone writes.
 STUB_PAGES = {
@@ -311,6 +355,53 @@ def test_statistics_come_from_the_posts_not_the_journal_index():
     # their bodies. Both hops really happened.
     assert "https://acme.invalid/journal" in fetcher.calls
     assert "https://acme.invalid/journal/why-beam-matters" in fetcher.calls
+
+
+def test_flat_permalink_index_is_not_profiled_as_an_article():
+    """Blocker: /journal -> /why-beam-matters is neither deeper nor dated.
+
+    Before the structural signal this wrote a row derived purely from card titles
+    and teasers, spending an Opus call to classify them.
+    """
+    from bce.articles import extract_article_text
+
+    teasers = extract_article_text(FLAT_JOURNAL_INDEX)
+    # The trap: the index alone clears the plausibility floor.
+    assert len(teasers) > profile.MIN_CORPUS_CHARS
+    index_words = style.typical_word_count([teasers])
+
+    conn, bid = _qualified_broker()
+    fetcher = FakeFetcher(FLAT_PAGES)
+    client = FakeProfileClient(JUDGEMENT)
+    assert bool(profile.profile_broker(conn, bid, fetcher, client)) is True
+
+    # The posts really were discovered and fetched, despite the flat permalinks.
+    fetched_posts = [c for c in fetcher.calls if c.endswith(
+        ("why-beam-matters", "draft-and-the-harbourmaster",
+         "galley-layouts-that-sell", "resale-value-and-warranties")
+    )]
+    assert len(fetched_posts) == 4
+
+    row = conn.execute("SELECT * FROM voice_profile WHERE broker_id=?", (bid,)).fetchone()
+    assert row["typical_word_count"] > 100
+    assert row["typical_word_count"] != index_words
+    # No teaser text survives into the stored quotes.
+    for quote in json.loads(row["sample_quotes"]):
+        assert "Teaser" not in quote
+        assert "marina is full in August" not in quote
+
+
+def test_a_flat_index_with_no_reachable_posts_writes_nothing():
+    """The index must never become the article, even when the hop yields nothing."""
+    conn, bid = _qualified_broker()
+    pages = {
+        "https://acme.invalid/": FLAT_HOME,
+        "https://acme.invalid/journal": FLAT_JOURNAL_INDEX,
+    }  # every post URL 404s
+    client = FakeProfileClient(JUDGEMENT)
+    assert bool(profile.profile_broker(conn, bid, FakeFetcher(pages), client)) is False
+    assert conn.execute("SELECT COUNT(*) AS c FROM voice_profile").fetchone()["c"] == 0
+    assert client.calls == 0
 
 
 def test_second_hop_does_not_refetch_posts_linked_from_two_indexes():

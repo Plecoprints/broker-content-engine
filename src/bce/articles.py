@@ -13,7 +13,7 @@ every bound below is checked *before* a fetch, never after.
 """
 import trafilatura
 
-from bce.detectors import find_post_links
+from bce.detectors import find_post_links, looks_like_index
 
 MAX_ARTICLES_PER_BROKER = 5
 
@@ -77,11 +77,17 @@ def collect_broker_articles(fetcher, editorial_urls: list[str]) -> list[str]:
 
     For each editorial section URL (up to MAX_INDEX_PAGES): fetch it once, and
     prefer the posts linked from it, up to a shared MAX_POST_CANDIDATES budget.
-    Only when the page links to no posts at all is the page's own text used —
-    that is the "broker publishes one long journal page" case, and requiring the
-    absence of post links is what keeps a *busy* index from qualifying as an
-    article on length alone. A journal index with forty teaser cards clears any
-    plausible character floor while being nothing but card titles.
+    The page's own text is used only when it is **not structurally an index** and
+    links to no posts — the "broker publishes one long journal page" case.
+
+    Both conditions are needed. `find_post_links` returning nothing is not proof
+    the page is an article: a flat-permalink index (`/journal` linking to
+    `/why-beam-matters`) has posts that are neither deeper nor dated, so a
+    path-shape rule alone sees an empty list and the teaser blob becomes the
+    "article". `looks_like_index` answers that question structurally instead, by
+    link density in the content region, so no permalink scheme can slip past it.
+    A character floor cannot do this job either — teaser text grows with card
+    count, so a busy index clears any floor exactly when it is least an article.
 
     Pages yielding less than MIN_ARTICLE_CHARS of text are discarded rather than
     profiled: statistics derived from teaser fragments are confidently wrong, and
@@ -100,6 +106,8 @@ def collect_broker_articles(fetcher, editorial_urls: list[str]) -> list[str]:
 
         post_urls = find_post_links(index_html, index_url, exclude=editorial_urls)
         if not post_urls:
+            if looks_like_index(index_html, index_url, exclude=editorial_urls):
+                continue  # an index whose links all fell out: never an article
             direct = _article_text(index_html)
             if direct is not None:
                 articles.append(direct)

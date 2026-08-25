@@ -141,37 +141,44 @@ def find_editorial_urls(html: str, base_url: str) -> list[str]:
 _YEAR_SEGMENT_RE = re.compile(r"^(?:19|20)\d{2}$")
 _NON_PAGE_SCHEMES = ("mailto:", "tel:", "javascript:", "data:")
 
+#: Page furniture. Links here are site chrome, not editorial content, and the
+#: distinction is structural rather than a list of paths to ignore.
+_CHROME_TAGS = ("nav", "header", "footer", "aside")
+
+#: Distinct same-host content links that make a page an *index* rather than an
+#: article. Three, because a journal index shows at least three posts, while a
+#: single long-form piece rarely carries three distinct in-body links to other
+#: pages of the same site. Below three the depth/date rule still applies, and the
+#: `MIN_ARTICLE_CHARS` floor covers what is left: a two-card index extracts to
+#: roughly 325 chars, well under the 600-char floor.
+MIN_INDEX_LINKS = 3
+
 
 def _path_segments(url: str) -> list[str]:
     return [seg for seg in urlparse(url).path.split("/") if seg]
 
 
-def find_post_links(html: str, index_url: str, exclude: list[str] | None = None) -> list[str]:
-    """Same-host links on an editorial *index* that look like individual posts.
+def _content_region(html: str):
+    """The page's editorial region: `<main>` if it declares one, else the body
+    with nav/header/footer/aside removed. Returns None for unusable markup."""
+    tree = HTMLParser(html or "")
+    tree.strip_tags(list(_CHROME_TAGS))
+    return tree.css_first("main") or tree.body
 
-    `find_editorial_urls` returns section pages — `/journal`, `/news`, `/blog`.
-    Handing those straight to an article extractor profiles the index: trafilatura
-    on a journal index yields teaser fragments, not an article body, and the
-    statistics derived from it describe the site's card layout rather than how the
-    broker writes (spec §5 Stage 3, §10.3 *Tailored*). This is the second hop.
 
-    A post link is deliberately not classified by a model. It is a same-host page
-    that is either **deeper than the index** (`/journal/why-beam-matters` under
-    `/journal`) or carries a **date segment** (`/2026/03/berthing`), and is not
-    one of the editorial section URLs already known. Nav, contact, and fleet links
-    sit at or above the index's depth and fall out on that rule alone.
+def _candidate_links(html: str, index_url: str, exclude: list[str] | None) -> list[str]:
+    """Distinct same-host, fetchable content-region links, in document order."""
+    region = _content_region(html)
+    if region is None:
+        return []
 
-    Document order is preserved and duplicates dropped, so the caller's fetch
-    budget is spent on the most prominent posts — normally the newest.
-    """
     base_host = urlparse(index_url).netloc
-    index_depth = len(_path_segments(index_url))
     skip = {index_url.rstrip("/")}
     for url in exclude or []:
         skip.add(url.rstrip("/"))
 
     found: list[str] = []
-    for node in HTMLParser(html or "").css("a"):
+    for node in region.css("a"):
         href = (node.attributes.get("href") or "").strip()
         if not href or href.startswith("#"):
             continue
@@ -185,16 +192,74 @@ def find_post_links(html: str, index_url: str, exclude: list[str] | None = None)
         absolute = parsed._replace(fragment="").geturl()
         if absolute.rstrip("/") in skip:
             continue
-
-        segments = _path_segments(absolute)
-        deeper = len(segments) > index_depth
-        dated = any(_YEAR_SEGMENT_RE.match(seg) for seg in segments)
-        if not (deeper or dated):
-            continue
         if absolute not in found:
             found.append(absolute)
 
     return found
+
+
+def looks_like_index(html: str, index_url: str, exclude: list[str] | None = None) -> bool:
+    """Is this page a list of posts rather than a post?
+
+    **Structural, not textual, and independent of path shape.** A page carrying
+    MIN_INDEX_LINKS or more distinct same-host links in its content region is an
+    index. That holds for WordPress's default `/%postname%/` permalinks, where a
+    `/journal` index links to `/why-beam-matters` — neither deeper than the index
+    nor dated, so a path-shape rule sees no posts at all and the index sails
+    through as an "article".
+
+    It cannot be defeated by rewriting URLs, because it reads how many places the
+    page sends you rather than what those places are called. A length test cannot
+    stand in for it: teaser text scales with card count, so a busy index clears
+    any character floor precisely when it is least like an article.
+    """
+    return len(_candidate_links(html, index_url, exclude)) >= MIN_INDEX_LINKS
+
+
+def find_post_links(html: str, index_url: str, exclude: list[str] | None = None) -> list[str]:
+    """Same-host links on an editorial *index* that look like individual posts.
+
+    `find_editorial_urls` returns section pages — `/journal`, `/news`, `/blog`.
+    Handing those straight to an article extractor profiles the index: trafilatura
+    on a journal index yields teaser fragments, not an article body, and the
+    statistics derived from it describe the site's card layout rather than how the
+    broker writes (spec §5 Stage 3, §10.3 *Tailored*). This is the second hop.
+
+    Candidates are same-host, fetchable links in the **content region** — `<main>`
+    when the page declares one, otherwise the body with nav/header/footer/aside
+    stripped — excluding the index itself and the editorial section URLs already
+    known. Nothing is classified by a model.
+
+    Which candidates count as posts depends on what the page is:
+
+    - **An index** (`looks_like_index`): every candidate. This is what finds flat
+      `/%postname%/` permalinks, which no path-shape rule can see.
+    - **Anything else**: only candidates that are deeper than the index
+      (`/journal/why-beam-matters`) or carry a date segment (`/2026/03/berthing`),
+      so a long-form page that happens to link to `/contact` in its body is not
+      mistaken for a listing.
+
+    Trade accepted: on a page with no `<main>` and no `<nav>`, chrome links are
+    indistinguishable from cards and may be fetched. They are same-host pages that
+    fail the `MIN_ARTICLE_CHARS` floor, so they cost a bounded number of requests
+    and never reach the statistics.
+
+    Document order is preserved and duplicates dropped, so the caller's fetch
+    budget is spent on the most prominent posts — normally the newest.
+    """
+    candidates = _candidate_links(html, index_url, exclude)
+    if len(candidates) >= MIN_INDEX_LINKS:
+        return candidates
+
+    index_depth = len(_path_segments(index_url))
+    posts: list[str] = []
+    for absolute in candidates:
+        segments = _path_segments(absolute)
+        deeper = len(segments) > index_depth
+        dated = any(_YEAR_SEGMENT_RE.match(seg) for seg in segments)
+        if deeper or dated:
+            posts.append(absolute)
+    return posts
 
 
 _NEWSLETTER_HINTS = ("newsletter", "mailing list", "email updates", "email list")
