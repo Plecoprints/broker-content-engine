@@ -3,11 +3,13 @@ import argparse
 import sys
 from pathlib import Path
 
-from bce import db, discover, qualify
+from bce import db, discover, profile, qualify
 from bce.fetch import Fetcher
+from bce.llm import ProfileClient
 
 MAX_BROKERS = 50
 DEFAULT_QUALIFY_LIMIT = 20
+MAX_PROFILE_CALLS = 20
 
 
 def cmd_init(db_path: str) -> int:
@@ -123,6 +125,27 @@ def cmd_list(db_path: str) -> int:
     return 0
 
 
+def cmd_profile(db_path: str, limit: int = MAX_PROFILE_CALLS) -> int:
+    if limit > MAX_PROFILE_CALLS:
+        print(
+            f"refused: {limit} exceeds the {MAX_PROFILE_CALLS}-call ceiling "
+            f"(spec section 11.5). Raise it deliberately or lower --limit."
+        )
+        return 1
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    rows = discover.unprofiled_brokers(conn, limit)
+    if not rows:
+        print("no qualified brokers awaiting a profile")
+        return 0
+    fetcher = Fetcher()
+    profile_client = ProfileClient()
+    for row in rows:
+        ok = profile.profile_broker(conn, row["id"], fetcher, profile_client)
+        print(f"{row['domain']}: {'profiled' if ok else 'no articles found'}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="bce")
     parser.add_argument("--db", default="bce.db")
@@ -138,6 +161,8 @@ def main(argv: list[str] | None = None) -> int:
         help="broker domain to requalify; omit to clear every rejected broker",
     )
     sub.add_parser("list")
+    p_profile = sub.add_parser("profile")
+    p_profile.add_argument("--limit", type=int, default=MAX_PROFILE_CALLS)
 
     args = parser.parse_args(argv)
     if args.command == "init":
@@ -150,5 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_requalify(args.db, args.domain)
     if args.command == "list":
         return cmd_list(args.db)
+    if args.command == "profile":
+        return cmd_profile(args.db, args.limit)
     print("unknown command", file=sys.stderr)
     return 2

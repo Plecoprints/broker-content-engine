@@ -169,3 +169,14 @@ def clear_qualification(
         cursor = conn.execute(reset + "WHERE qualified=0")
     conn.commit()
     return cursor.rowcount
+
+
+def unprofiled_brokers(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
+    """Qualified brokers that have no voice profile yet (spec §5 Stage 3)."""
+    return conn.execute(
+        "SELECT b.id, b.domain FROM broker b "
+        "LEFT JOIN voice_profile v ON v.broker_id = b.id "
+        "WHERE b.qualified = 1 AND v.broker_id IS NULL "
+        "ORDER BY b.name LIMIT ?",
+        (limit,),
+    ).fetchall()
