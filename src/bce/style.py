@@ -3,6 +3,7 @@
 Pure functions over text. The LLM handles judgement; this handles counting, so
 the countable half of a voice profile is reproducible and testable offline.
 """
+import json
 import re
 import statistics
 
@@ -41,6 +42,22 @@ def typical_word_count(texts: list[str]) -> int:
 
 
 def structure_pattern(texts: list[str]) -> str:
+    """Article shape as a JSON object in a TEXT column (spec §10.3 *Tailored*).
+
+    JSON, not prose: Stage 4 has to *score* structure match against this, which
+    means comparing numbers. Its siblings in the same INSERT already store JSON
+    (`vocabulary_markers`, `themes`, `sample_quotes`), so this is the column's
+    house format rather than a new one — no schema change.
+
+    Both values are rounded here rather than at render time, so the stored
+    statistic is the same integer every reader sees, and matches how
+    `typical_word_count` rounds its median.
+
+    The no-input case is `{"paragraphs_per_article": null, "words_per_paragraph":
+    null}` — still parseable JSON, and distinguishable from real data by the
+    nulls rather than by an in-band `"unknown"` sentinel a parser would have to
+    special-case.
+    """
     # Compute per-article statistics, skipping texts with zero paragraphs
     per_text_stats = []
     for text in texts:
@@ -53,13 +70,16 @@ def structure_pattern(texts: list[str]) -> str:
             per_text_stats.append((num_paras, statistics.fmean(words_per_para)))
 
     if not per_text_stats:
-        return "unknown"
+        return json.dumps({"paragraphs_per_article": None, "words_per_paragraph": None})
 
     # Compute mean paragraphs per article and mean words per paragraph
     mean_paras = statistics.fmean([n for n, _ in per_text_stats])
     mean_words = statistics.fmean([w for _, w in per_text_stats])
 
-    return f"{round(mean_paras)} paragraphs/article, {round(mean_words)} words/para"
+    return json.dumps({
+        "paragraphs_per_article": round(mean_paras),
+        "words_per_paragraph": round(mean_words),
+    })
 
 
 MAX_QUOTE_CHARS = 200
