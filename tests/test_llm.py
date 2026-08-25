@@ -2,7 +2,13 @@ import json
 
 import anthropic
 import pytest
-from bce.llm import MODEL, PROFILE_SCHEMA, ProfileClient
+from bce.llm import (
+    MAX_CLASSIFY_CHARS,
+    MAX_CLASSIFY_CHARS_PER_ARTICLE,
+    MODEL,
+    PROFILE_SCHEMA,
+    ProfileClient,
+)
 
 VALID = {
     "register": "warm professional",
@@ -94,3 +100,41 @@ def test_classify_returns_empty_dict_on_refusal_with_no_text_block():
     # so the behaviour is a deliberate, tested contract rather than an accident.
     fake = FakeClient(stop_reason="refusal")
     assert ProfileClient(client=fake).classify(["text"]) == {}
+
+
+# --- unbounded corpus: cap what one call sends -------------------------------
+
+def _sent_text(fake):
+    return fake.messages.calls[0]["messages"][0]["content"]
+
+
+def test_classify_caps_each_article():
+    fake = FakeClient(VALID)
+    ProfileClient(client=fake).classify(["x" * 50_000])
+    assert _sent_text(fake).count("x") == MAX_CLASSIFY_CHARS_PER_ARTICLE
+
+
+def test_classify_caps_the_whole_corpus():
+    fake = FakeClient(VALID)
+    # 20 articles at the per-article cap would be 80k chars without a total.
+    articles = ["y" * 10_000 for _ in range(20)]
+    ProfileClient(client=fake).classify(articles)
+    # Counted on the corpus itself: the fixed prompt prefix contains a 'y'
+    # ("Analyse"), so counting the whole user turn would be off by one.
+    assert ProfileClient._bounded_corpus(articles).count("y") == MAX_CLASSIFY_CHARS
+    assert len(_sent_text(fake)) < MAX_CLASSIFY_CHARS + 200
+
+
+def test_classify_leaves_a_normal_corpus_untouched():
+    fake = FakeClient(VALID)
+    articles = ["Beam matters more than length.", "Draft is the other constraint."]
+    ProfileClient(client=fake).classify(articles)
+    sent = _sent_text(fake)
+    for article in articles:
+        assert article in sent
+
+
+def test_bounded_corpus_never_exceeds_the_total():
+    for count, size in [(1, 100_000), (5, 9_000), (50, 500), (3, 10)]:
+        got = ProfileClient._bounded_corpus([("z" * size) for _ in range(count)])
+        assert got.count("z") <= MAX_CLASSIFY_CHARS
