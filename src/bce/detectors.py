@@ -8,9 +8,14 @@ real defect (a raw response body makes `width='150'` look like a 150ft vessel):
 
 - `detect_max_length_ft`, `detect_sunreef_affinity` take **extracted text** —
   human-visible prose, no markup, no inline script. `visible_text()` derives it.
-- `find_editorial_urls`, `detect_newsletter`, `detect_last_post_date` take
-  **raw HTML**, because they read attributes (`href`, `input type=email`,
-  `<time datetime>`). They strip `<script>`/`<style>` themselves.
+- `find_editorial_urls`, `find_post_links`, `detect_newsletter`,
+  `detect_last_post_date` take **raw HTML**, because they read attributes
+  (`href`, `input type=email`, `<time datetime>`). They strip
+  `<script>`/`<style>` themselves.
+
+`find_post_links` is the one function here Stage 3 rather than Stage 2 needs
+(spec §5 Stage 3); it lives beside `find_editorial_urls` because it is the
+second half of the same walk — section, then the posts behind it.
 """
 import re
 from urllib.parse import urljoin, urlparse
@@ -126,6 +131,65 @@ def find_editorial_urls(html: str, base_url: str) -> list[str]:
 
         absolute = urljoin(base_url, href)
         if urlparse(absolute).netloc != base_host:
+            continue
+        if absolute not in found:
+            found.append(absolute)
+
+    return found
+
+
+_YEAR_SEGMENT_RE = re.compile(r"^(?:19|20)\d{2}$")
+_NON_PAGE_SCHEMES = ("mailto:", "tel:", "javascript:", "data:")
+
+
+def _path_segments(url: str) -> list[str]:
+    return [seg for seg in urlparse(url).path.split("/") if seg]
+
+
+def find_post_links(html: str, index_url: str, exclude: list[str] | None = None) -> list[str]:
+    """Same-host links on an editorial *index* that look like individual posts.
+
+    `find_editorial_urls` returns section pages — `/journal`, `/news`, `/blog`.
+    Handing those straight to an article extractor profiles the index: trafilatura
+    on a journal index yields teaser fragments, not an article body, and the
+    statistics derived from it describe the site's card layout rather than how the
+    broker writes (spec §5 Stage 3, §10.3 *Tailored*). This is the second hop.
+
+    A post link is deliberately not classified by a model. It is a same-host page
+    that is either **deeper than the index** (`/journal/why-beam-matters` under
+    `/journal`) or carries a **date segment** (`/2026/03/berthing`), and is not
+    one of the editorial section URLs already known. Nav, contact, and fleet links
+    sit at or above the index's depth and fall out on that rule alone.
+
+    Document order is preserved and duplicates dropped, so the caller's fetch
+    budget is spent on the most prominent posts — normally the newest.
+    """
+    base_host = urlparse(index_url).netloc
+    index_depth = len(_path_segments(index_url))
+    skip = {index_url.rstrip("/")}
+    for url in exclude or []:
+        skip.add(url.rstrip("/"))
+
+    found: list[str] = []
+    for node in HTMLParser(html or "").css("a"):
+        href = (node.attributes.get("href") or "").strip()
+        if not href or href.startswith("#"):
+            continue
+        if href.lower().startswith(_NON_PAGE_SCHEMES):
+            continue
+
+        absolute = urljoin(index_url, href)
+        parsed = urlparse(absolute)
+        if parsed.scheme not in ("http", "https") or parsed.netloc != base_host:
+            continue
+        absolute = parsed._replace(fragment="").geturl()
+        if absolute.rstrip("/") in skip:
+            continue
+
+        segments = _path_segments(absolute)
+        deeper = len(segments) > index_depth
+        dated = any(_YEAR_SEGMENT_RE.match(seg) for seg in segments)
+        if not (deeper or dated):
             continue
         if absolute not in found:
             found.append(absolute)

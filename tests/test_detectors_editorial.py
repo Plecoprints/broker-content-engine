@@ -1,4 +1,4 @@
-from bce.detectors import detect_last_post_date, find_editorial_urls
+from bce.detectors import detect_last_post_date, find_editorial_urls, find_post_links
 
 
 def test_finds_blog_link_and_absolutizes():
@@ -88,3 +88,65 @@ def test_returns_none_when_no_date_is_declared():
 def test_returns_none_on_empty_or_junk_input():
     assert detect_last_post_date("") is None
     assert detect_last_post_date("\x00\x01 not html at all") is None
+
+
+# --- C1: the second hop, index -> posts --------------------------------------
+
+INDEX = "https://acme.com/journal"
+
+
+def test_finds_posts_deeper_than_the_index():
+    html = (
+        '<a href="/journal/why-beam-matters">Why beam matters</a>'
+        '<a href="/journal/draft-depth">Draft depth</a>'
+    )
+    assert find_post_links(html, INDEX) == [
+        "https://acme.com/journal/why-beam-matters",
+        "https://acme.com/journal/draft-depth",
+    ]
+
+
+def test_ignores_nav_links_at_or_above_the_index_depth():
+    html = '<a href="/about">About</a><a href="/contact">Contact</a><a href="/">Home</a>'
+    assert find_post_links(html, INDEX) == []
+
+
+def test_accepts_a_dated_path_even_at_the_same_depth():
+    html = '<a href="/2026/berthing-in-august">Berthing</a>'
+    assert find_post_links(html, INDEX) == ["https://acme.com/2026/berthing-in-august"]
+
+
+def test_excludes_the_index_itself_and_other_editorial_sections():
+    html = (
+        '<a href="/journal">Journal</a>'
+        '<a href="/journal/">Journal again</a>'
+        '<a href="/news">News</a>'
+        '<a href="/journal/a-real-post">A real post</a>'
+    )
+    got = find_post_links(html, INDEX, exclude=["https://acme.com/journal",
+                                                "https://acme.com/news"])
+    assert got == ["https://acme.com/journal/a-real-post"]
+
+
+def test_ignores_offsite_and_non_page_links():
+    html = (
+        '<a href="https://other.com/journal/post">Offsite</a>'
+        '<a href="mailto:hi@acme.com">Email</a>'
+        '<a href="tel:+123">Call</a>'
+        '<a href="#top">Top</a>'
+        '<a href="/journal/keeper">Keeper</a>'
+    )
+    assert find_post_links(html, INDEX) == ["https://acme.com/journal/keeper"]
+
+
+def test_deduplicates_and_drops_fragments():
+    html = (
+        '<a href="/journal/post-a">A</a>'
+        '<a href="/journal/post-a#comments">A again</a>'
+        '<a href="/journal/post-a">A once more</a>'
+    )
+    assert find_post_links(html, INDEX) == ["https://acme.com/journal/post-a"]
+
+
+def test_handles_empty_html():
+    assert find_post_links("", INDEX) == []
