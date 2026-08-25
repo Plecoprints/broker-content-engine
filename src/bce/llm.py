@@ -11,6 +11,14 @@ import anthropic
 MODEL = "claude-opus-5"
 MAX_TOKENS = 2048
 
+#: Spec §10.3 bounds what a broker's page may put into our store. The article
+#: text reaching this call is untrusted third-party web content interpolated into
+#: the user turn, so these limits are stated in the schema *and* re-applied on
+#: persist (`profile.MAX_FIELD_CHARS` / `profile.MAX_LIST_ITEMS`). A schema is a
+#: request to the model; the clamp is the enforcement.
+MAX_FIELD_CHARS = 120
+MAX_LIST_ITEMS = 8
+
 PROFILE_SCHEMA = {
     "type": "json_schema",
     "schema": {
@@ -18,20 +26,24 @@ PROFILE_SCHEMA = {
         "properties": {
             "register": {
                 "type": "string",
+                "maxLength": MAX_FIELD_CHARS,
                 "description": "Formality and tone in a few words, e.g. 'warm professional'",
             },
             "themes": {
                 "type": "array",
-                "items": {"type": "string"},
+                "maxItems": MAX_LIST_ITEMS,
+                "items": {"type": "string", "maxLength": MAX_FIELD_CHARS},
                 "description": "Recurring subjects, 3-6 short phrases",
             },
             "audience_signal": {
                 "type": "string",
+                "maxLength": MAX_FIELD_CHARS,
                 "description": "Who they are writing for: charter clients, owners, investors",
             },
             "vocabulary_markers": {
                 "type": "array",
-                "items": {"type": "string"},
+                "maxItems": MAX_LIST_ITEMS,
+                "items": {"type": "string", "maxLength": MAX_FIELD_CHARS},
                 "description": "Distinctive words this writer reaches for",
             },
         },
