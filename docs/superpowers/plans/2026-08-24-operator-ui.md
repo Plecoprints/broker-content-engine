@@ -273,7 +273,184 @@ git commit -m "feat: operator UI vertical slice — shortlist page with example 
 
 ---
 
-### Task 2: Broker detail with the voice profile
+### Task 2: Add brokers — CSV upload and manual entry
+
+**Added after operator review of Task 1.** The shortlist page was read-only: the only way to get brokers
+in was `bce import` at a terminal, which is a developer tool, not an operator one. This is the blocking
+usability gap and it comes before everything else.
+
+**Files:**
+- Modify: `src/bce/web/app.py`
+- Create: `src/bce/web/templates/add.html`
+- Modify: `src/bce/web/templates/shortlist.html` (link to the add page), `base.html` (nav)
+- Test: `tests/test_web_add.py`
+
+**Interfaces:**
+- Consumes: `bce.discover.import_csv`, `discover.count_new_domains`, `discover.CsvHeaderError`, `bce.cli.MAX_BROKERS`
+- Produces:
+  - `GET /add` → the form page
+  - `POST /add/csv` → multipart upload; redirects to `/` on success
+  - `POST /add/manual` → form fields `name`, `domain`, optional `region`; redirects to `/` on success
+
+**Reuse the existing pipeline logic; do not reimplement any of it.** `import_csv` already handles
+case-insensitive headers, the UTF-8 BOM, whitespace-padded header names, domain normalization
+(scheme/path/`www.` stripping), and duplicate-domain skipping. `count_new_domains` already counts only
+domains not already present. Rewriting any of that in the web layer would create a second source of
+truth for rules that took two fix rounds to get right.
+
+**Four behaviours the page must get right:**
+
+1. **The §6 cap refuses, it does not truncate.** If `existing + new > MAX_BROKERS`, reject the whole
+   upload with a message naming both numbers — the same discipline as `cmd_import`. Silently importing
+   the first 50 of 55 hides that the operator crossed the line.
+2. **A bad CSV header must say what it found.** `import_csv` raises `CsvHeaderError` carrying the headers
+   actually present. Surface those. "Imported 0 brokers" for a `Name,Domain` file is the exact
+   silent-no-op this project already fixed once at the CLI; do not reintroduce it in the UI.
+3. **Manual add validates the domain** through the same normalization, and reports a cell that is not a
+   hostname rather than storing it. A URL in the domain field caused permanent false rejections in
+   Stage 2; the form is where to catch it.
+4. **Feedback is specific.** "Imported 12 brokers (3 duplicates skipped)" — not "success".
+
+- [ ] **Step 1: Write the failing test**
+
+`tests/test_web_add.py`:
+```python
+import io
+
+from fastapi.testclient import TestClient
+
+from bce import cli, db, discover
+from bce.web.app import create_app
+
+
+def _client(tmp_path):
+    path = str(tmp_path / "ui.db")
+    conn = db.connect(path)
+    db.init_schema(conn)
+    conn.close()
+    return TestClient(create_app(path)), path
+
+
+def _csv(text):
+    return {"file": ("brokers.csv", io.BytesIO(text.encode()), "text/csv")}
+
+
+def test_add_page_renders(tmp_path):
+    client, _ = _client(tmp_path)
+    r = client.get("/add")
+    assert r.status_code == 200
+    assert "csv" in r.text.lower()
+
+
+def test_csv_upload_imports_brokers(tmp_path):
+    client, path = _client(tmp_path)
+    r = client.post("/add/csv", files=_csv("name,domain\nAcme,acme.invalid\n"),
+                    follow_redirects=True)
+    assert r.status_code == 200
+    conn = db.connect(path)
+    assert len(discover.list_brokers(conn)) == 1
+
+
+def test_csv_upload_tolerates_title_case_headers(tmp_path):
+    """The exact silent no-op fixed at the CLI — it must not return in the UI."""
+    client, path = _client(tmp_path)
+    client.post("/add/csv", files=_csv("Name,Domain\nAcme,acme.invalid\n"),
+                follow_redirects=True)
+    conn = db.connect(path)
+    assert len(discover.list_brokers(conn)) == 1
+
+
+def test_bad_headers_report_what_was_found(tmp_path):
+    client, _ = _client(tmp_path)
+    r = client.post("/add/csv", files=_csv("company,website\nAcme,acme.invalid\n"),
+                    follow_redirects=True)
+    assert "company" in r.text and "website" in r.text
+
+
+def test_cap_refuses_the_whole_upload(tmp_path):
+    client, path = _client(tmp_path)
+    rows = "name,domain\n" + "".join(f"B{i},b{i}.invalid\n" for i in range(cli.MAX_BROKERS + 5))
+    r = client.post("/add/csv", files=_csv(rows), follow_redirects=True)
+    assert "cap" in r.text.lower()
+    conn = db.connect(path)
+    assert len(discover.list_brokers(conn)) == 0, "refusal must insert nothing"
+
+
+def test_manual_add_creates_a_broker(tmp_path):
+    client, path = _client(tmp_path)
+    client.post("/add/manual", data={"name": "Acme", "domain": "acme.invalid",
+                                     "region": "Med"}, follow_redirects=True)
+    conn = db.connect(path)
+    rows = discover.list_brokers(conn)
+    assert len(rows) == 1 and rows[0]["region"] == "Med"
+
+
+def test_manual_add_normalizes_a_url_in_the_domain_field(tmp_path):
+    client, path = _client(tmp_path)
+    client.post("/add/manual", data={"name": "Acme", "domain": "https://www.acme.invalid/"},
+                follow_redirects=True)
+    conn = db.connect(path)
+    assert discover.list_brokers(conn)[0]["domain"] == "acme.invalid"
+
+
+def test_manual_add_rejects_a_non_hostname(tmp_path):
+    client, path = _client(tmp_path)
+    r = client.post("/add/manual", data={"name": "Acme", "domain": "not a domain"},
+                    follow_redirects=True)
+    assert "not a domain" in r.text
+    conn = db.connect(path)
+    assert len(discover.list_brokers(conn)) == 0
+
+
+def test_duplicate_domain_is_reported_not_silently_dropped(tmp_path):
+    client, path = _client(tmp_path)
+    client.post("/add/csv", files=_csv("name,domain\nAcme,acme.invalid\n"), follow_redirects=True)
+    r = client.post("/add/csv", files=_csv("name,domain\nAcme Again,acme.invalid\n"),
+                    follow_redirects=True)
+    assert "0" in r.text
+    conn = db.connect(path)
+    assert len(discover.list_brokers(conn)) == 1
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `.venv/bin/python -m pytest tests/test_web_add.py -v`
+Expected: FAIL — 404 on `/add`, since no route exists. `python-multipart` may also be missing; if the
+upload tests error on that rather than 404, add it as a dependency and say so.
+
+- [ ] **Step 3: Write minimal implementation**
+
+Add the three routes to `create_app`. Carry the result message across the redirect (a query parameter is
+fine at this scale; do not add a session). Catch `CsvHeaderError` and render its headers. Check the cap
+with `count_new_domains` **before** inserting.
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `.venv/bin/python -m pytest tests/ -v`
+
+Then **use the page yourself**: start the server, upload a CSV with Title-Case headers, try one over the
+cap, and add one manually with a URL in the domain field. Report what each one showed you. A form that
+passes its tests but gives an operator no idea what happened has failed this task.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/bce/web tests/test_web_add.py
+git commit -m "feat: add brokers via CSV upload and manual entry"
+```
+
+---
+
+## Deferred until after Stage 4
+
+The two tasks below are written and ready, but the operator's priority is seeing **article content**,
+which does not exist until Stage 4 (drafting) is built. Broker detail and the dashboard are informative
+rather than blocking, so they wait. The review queue — §9's core screen, where article options are
+compared and approved — also belongs to that later pass, since it reviews drafts.
+
+---
+
+### Task 3 (deferred): Broker detail with the voice profile
 
 **Files:**
 - Modify: `src/bce/web/app.py`
@@ -375,7 +552,7 @@ git commit -m "feat: broker detail page with voice profile"
 
 ---
 
-### Task 3: Dashboard
+### Task 4 (deferred): Dashboard
 
 **Files:**
 - Modify: `src/bce/web/app.py`, `src/bce/web/templates/base.html`
