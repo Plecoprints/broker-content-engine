@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Broker Content Engine{% endblock %}</title>
+  <!--
+    HTMX is not wired up yet — it lands with a later task, once a partial-swap
+    route actually exists. A CDN <script> tag for a feature the app does not
+    use yet would be a network dependency for nothing (this app is
+    localhost-only, no external calls). Add it here when that task adds its
+    first hx- attribute.
+  -->
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1b2430;
+      --muted: #5b6b7c;
+      --border: #dde3ea;
+      --bg: #f7f9fb;
+      --panel: #ffffff;
+      --accent: #2a5c8f;
+      --ok-bg: #e6f4ea;
+      --ok-ink: #1c6b34;
+      --no-bg: #fbe9e7;
+      --no-ink: #a13a2a;
+      --pending-bg: #fff6df;
+      --pending-ink: #8a6100;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    header.app {
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+    header.app h1 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+    header.app p {
+      margin: 0.25rem 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    main {
+      padding: 1.5rem 2rem 3rem;
+      max-width: 1200px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+    caption {
+      text-align: left;
+      margin-bottom: 0.5rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      font-size: 0.92rem;
+    }
+    th {
+      background: #eef2f6;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-size: 0.75rem;
+    }
+    tr:last-child td { border-bottom: none; }
+    .muted { color: var(--muted); }
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .pill-qualified { background: var(--ok-bg); color: var(--ok-ink); }
+    .pill-rejected { background: var(--no-bg); color: var(--no-ink); }
+    .pill-pending { background: var(--pending-bg); color: var(--pending-ink); }
+    .domain { color: var(--accent); }
+    .empty-state {
+      padding: 3rem 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      background: var(--panel);
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <header class="app">
+    <h1>Broker Content Engine</h1>
+    <p>Operator UI — localhost only, no auth (spec §9)</p>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

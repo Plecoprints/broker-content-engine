@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Shortlist — Broker Content Engine{% endblock %}
+{% block content %}
+  {% if brokers %}
+    <table>
+      <caption>{{ brokers | length }} broker{{ "s" if brokers | length != 1 else "" }}, warmest affinity first</caption>
+      <thead>
+        <tr>
+          <th>Broker</th>
+          <th>Domain</th>
+          <th>Region</th>
+          <th>Affinity</th>
+          <th>State</th>
+          <th>Reason</th>
+          <th>Channels</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in brokers %}
+          <tr>
+            <td>{{ b["name"] }}</td>
+            <td><span class="domain">{{ b["domain"] }}</span></td>
+            <td>
+              {% if b["region"] %}
+                {{ b["region"] }}
+              {% else %}
+                <span class="muted">unspecified</span>
+              {% endif %}
+            </td>
+            <td>{{ b["sunreef_affinity"] }}</td>
+            <td>
+              {% if b["qualified"] == 1 %}
+                <span class="pill pill-qualified">qualified</span>
+              {% elif b["qualified"] == 0 %}
+                <span class="pill pill-rejected">rejected</span>
+              {% else %}
+                <span class="pill pill-pending">pending</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if b["qualified_reason"] %}
+                {{ b["qualified_reason"] }}
+              {% else %}
+                <span class="muted">&mdash;</span>
+              {% endif %}
+            </td>
+            <td>
+              editorial:
+              {% if b["has_editorial"] is none %}
+                <span class="muted">unknown</span>
+              {% elif b["has_editorial"] %}
+                yes{% if b["editorial_last_post"] %} ({{ b["editorial_last_post"] }}){% endif %}
+              {% else %}
+                no
+              {% endif %}
+              &middot;
+              newsletter:
+              {% if b["has_newsletter"] is none %}
+                <span class="muted">unknown</span>
+              {% elif b["has_newsletter"] %}
+                yes
+              {% else %}
+                no
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <p>No brokers yet. Import a CSV or run <code>bce seed-example</code> to see example data.</p>
+    </div>
+  {% endif %}
+{% endblock %}

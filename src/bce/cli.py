@@ -3,7 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from bce import db, discover, profile, qualify
+from bce import db, discover, profile, qualify, seed
 from bce.fetch import Fetcher
 from bce.llm import ProfileClient
 
@@ -185,6 +185,21 @@ def cmd_reprofile(db_path: str, domain: str | None = None) -> int:
     return 0
 
 
+def cmd_seed_example(db_path: str) -> int:
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    print(f"seeded {seed.seed_example(conn)} example brokers (.invalid domains)")
+    return 0
+
+
+def cmd_serve(db_path: str, host: str = "127.0.0.1", port: int = 8000) -> int:
+    import uvicorn
+    from bce.web.app import create_app
+    print(f"http://{host}:{port}")
+    uvicorn.run(create_app(db_path), host=host, port=port, log_level="warning")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="bce")
     parser.add_argument("--db", default="bce.db")
@@ -207,6 +222,10 @@ def main(argv: list[str] | None = None) -> int:
         "domain", nargs="?",
         help="broker domain to reprofile; omit to clear every degraded profile",
     )
+    sub.add_parser("seed-example")
+    p_serve = sub.add_parser("serve")
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8000)
 
     args = parser.parse_args(argv)
     if args.command == "init":
@@ -223,5 +242,9 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_profile(args.db, args.limit)
     if args.command == "reprofile":
         return cmd_reprofile(args.db, args.domain)
+    if args.command == "seed-example":
+        return cmd_seed_example(args.db)
+    if args.command == "serve":
+        return cmd_serve(args.db, args.host, args.port)
     print("unknown command", file=sys.stderr)
     return 2
