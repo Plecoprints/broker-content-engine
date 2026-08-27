@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Shortlist — Broker Content Engine{% endblock %}
 {% block content %}
+  {% if message %}
+    <div class="flash {{ 'flash-ok' if ok else 'flash-error' }}">{{ message }}</div>
+  {% endif %}
+  <a class="add-link" href="/add">+ Add brokers</a>
   {% if brokers %}
     <table>
       <caption>{{ brokers | length }} broker{{ "s" if brokers | length != 1 else "" }}, warmest affinity first</caption>
@@ -69,7 +73,8 @@
     </table>
   {% else %}
     <div class="empty-state">
-      <p>No brokers yet. Import a CSV or run <code>bce seed-example</code> to see example data.</p>
+      <p>No brokers yet. <a href="/add">Import a CSV or add one manually</a>, or run
+      <code>bce seed-example</code> to see example data.</p>
     </div>
   {% endif %}
 {% endblock %}

@@ -1,12 +1,16 @@
 """Operator UI (spec §9). Localhost only, no auth, reads SQLite directly."""
+import csv
+import io
 import json
 from pathlib import Path
+from urllib.parse import urlencode
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from bce import db, discover
+from bce.cli import MAX_BROKERS
 
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -21,6 +25,31 @@ def _loads(value, default):
         return default
 
 
+def _redirect(path: str, message: str, *, ok: bool) -> RedirectResponse:
+    """Carry the result across a redirect via a query parameter (§9: no session store).
+
+    303 turns the browser's next request into a GET, so reloading the landing
+    page never resubmits the form.
+    """
+    query = urlencode({"msg": message, "ok": "1" if ok else "0"})
+    return RedirectResponse(url=f"{path}?{query}", status_code=303)
+
+
+def _flash(request: Request) -> dict:
+    return {
+        "message": request.query_params.get("msg"),
+        "ok": request.query_params.get("ok") == "1",
+    }
+
+
+def _broker_count(conn) -> int:
+    return conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"]
+
+
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
 def create_app(db_path: str) -> FastAPI:
     app = FastAPI(title="Broker Content Engine")
     app.state.db_path = db_path
@@ -33,7 +62,108 @@ def create_app(db_path: str) -> FastAPI:
         brokers = discover.list_brokers(conn)
         return _TEMPLATES.TemplateResponse(
             request=request, name="shortlist.html",
-            context={"brokers": brokers},
+            context={"brokers": brokers, **_flash(request)},
         )
+
+    @app.get("/add", response_class=HTMLResponse)
+    def add_form(request: Request):
+        conn = db.connect(app.state.db_path)
+        db.init_schema(conn)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="add.html",
+            context={
+                "existing": _broker_count(conn),
+                "max_brokers": MAX_BROKERS,
+                **_flash(request),
+            },
+        )
+
+    @app.post("/add/csv")
+    async def add_csv(file: UploadFile = File(...)):
+        conn = db.connect(app.state.db_path)
+        db.init_schema(conn)
+        raw = await file.read()
+        # utf-8-sig: Excel's "CSV UTF-8" writes a BOM (same handling as `bce
+        # import`'s file read — see cli.cmd_import).
+        text = raw.decode("utf-8-sig", errors="replace")
+
+        try:
+            rows, rejected = discover.parse_rows(text)
+        except discover.CsvHeaderError as exc:
+            found = ", ".join(exc.found) if exc.found else "(no header row)"
+            return _redirect(
+                "/add",
+                f"That CSV's headers were not recognized — found: {found}. "
+                "Expected columns named 'name' and 'domain'.",
+                ok=False,
+            )
+
+        existing = _broker_count(conn)
+        # Only brokers this import would actually add count against the cap
+        # (spec §6): re-importing a growing master list must not double-count.
+        incoming = discover.count_new_domains(conn, text)
+        if existing + incoming > MAX_BROKERS:
+            return _redirect(
+                "/add",
+                f"Refused: {existing} existing + {incoming} new would exceed "
+                f"the {MAX_BROKERS}-broker cap (spec section 6). Trim the CSV "
+                "and try again.",
+                ok=False,
+            )
+
+        inserted = discover.import_csv(conn, text)
+        duplicates = len(rows) - inserted
+        message = f"Imported {_plural(inserted, 'broker')}"
+        details = []
+        if duplicates:
+            details.append(f"{_plural(duplicates, 'duplicate')} skipped")
+        if rejected:
+            details.append(f"{_plural(len(rejected), 'invalid domain')} skipped")
+        if details:
+            message += f" ({', '.join(details)})"
+        return _redirect("/", message, ok=True)
+
+    @app.post("/add/manual")
+    def add_manual(name: str = Form(...), domain: str = Form(...), region: str = Form("")):
+        conn = db.connect(app.state.db_path)
+        db.init_schema(conn)
+
+        clean_name = name.strip()
+        if not clean_name:
+            return _redirect("/add", "Name is required.", ok=False)
+        normalized = discover.normalize_domain(domain)
+        if normalized is None:
+            return _redirect(
+                "/add",
+                f"'{domain}' is not a hostname — expected something like "
+                "acme.com, not a URL or free text.",
+                ok=False,
+            )
+
+        # Reuse the exact CSV pipeline (normalization, cap check, dedup,
+        # insert) for a single synthetic row instead of a second insert path.
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["name", "domain", "region"])
+        writer.writerow([clean_name, normalized, region.strip()])
+        csv_text = buf.getvalue()
+
+        existing = _broker_count(conn)
+        incoming = discover.count_new_domains(conn, csv_text)
+        if existing + incoming > MAX_BROKERS:
+            return _redirect(
+                "/add",
+                f"Refused: adding this broker would exceed the {MAX_BROKERS}"
+                f"-broker cap (spec section 6) — currently {existing}.",
+                ok=False,
+            )
+
+        inserted = discover.import_csv(conn, csv_text)
+        if inserted == 0:
+            return _redirect(
+                "/", f"'{normalized}' is already in the broker list — nothing added.",
+                ok=True,
+            )
+        return _redirect("/", f"Added {clean_name} ({normalized}).", ok=True)
 
     return app

@@ -48,9 +48,85 @@
       color: var(--muted);
       font-size: 0.9rem;
     }
+    nav.app-nav {
+      margin-top: 0.75rem;
+      display: flex;
+      gap: 1.25rem;
+    }
+    nav.app-nav a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    nav.app-nav a:hover {
+      text-decoration: underline;
+    }
     main {
       padding: 1.5rem 2rem 3rem;
       max-width: 1200px;
+    }
+    .flash {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1.25rem;
+      font-size: 0.92rem;
+    }
+    .flash-ok { background: var(--ok-bg); color: var(--ok-ink); }
+    .flash-error { background: var(--no-bg); color: var(--no-ink); }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+      max-width: 32rem;
+    }
+    .panel h2 {
+      margin-top: 0;
+      font-size: 1.05rem;
+    }
+    .panel form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-top: 1rem;
+    }
+    .panel label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .panel input[type="text"],
+    .panel input[type="file"] {
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.92rem;
+    }
+    .panel button {
+      align-self: flex-start;
+      margin-top: 0.5rem;
+      padding: 0.5rem 1.1rem;
+      border: none;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .panel button:hover {
+      opacity: 0.9;
+    }
+    .add-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .add-link:hover {
+      text-decoration: underline;
     }
     table {
       width: 100%;
@@ -106,6 +182,10 @@
   <header class="app">
     <h1>Broker Content Engine</h1>
     <p>Operator UI — localhost only, no auth (spec §9)</p>
+    <nav class="app-nav">
+      <a href="/">Shortlist</a>
+      <a href="/add">Add brokers</a>
+    </nav>
   </header>
   <main>
     {% block content %}{% endblock %}
