@@ -124,7 +124,11 @@ def create_app(db_path: str) -> FastAPI:
         return _redirect("/", message, ok=True)
 
     @app.post("/add/manual")
-    def add_manual(name: str = Form(...), domain: str = Form(...), region: str = Form("")):
+    def add_manual(name: str = Form(""), domain: str = Form(""), region: str = Form("")):
+        # Defaults, not Form(...): an empty-valued urlencoded field is not
+        # reliably re-emitted by the form parser, which would otherwise turn a
+        # blank field into a 422 before our own "name is required" /
+        # normalize_domain checks below ever run.
         conn = db.connect(app.state.db_path)
         db.init_schema(conn)
 

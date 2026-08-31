@@ -93,3 +93,47 @@ def test_duplicate_domain_is_reported_not_silently_dropped(tmp_path):
     assert "0" in r.text
     conn = db.connect(path)
     assert len(discover.list_brokers(conn)) == 1
+
+
+def test_manual_add_rejects_a_blank_name(tmp_path):
+    """A raw POST can bypass the form's `required` attribute. Without the
+    guard, parse_rows silently skips the row, import_csv reports 0 inserted,
+    and the handler used to read that as 'already in the list' — a false
+    success for a broker that was never validly submitted."""
+    client, path = _client(tmp_path)
+    r = client.post("/add/manual", data={"name": "", "domain": "acme.invalid"},
+                    follow_redirects=True)
+    assert "name is required" in r.text.lower()
+    conn = db.connect(path)
+    assert len(discover.list_brokers(conn)) == 0
+
+
+def test_manual_add_rejects_a_whitespace_only_name(tmp_path):
+    client, path = _client(tmp_path)
+    r = client.post("/add/manual", data={"name": "   ", "domain": "acme.invalid"},
+                    follow_redirects=True)
+    assert "name is required" in r.text.lower()
+    conn = db.connect(path)
+    assert len(discover.list_brokers(conn)) == 0
+
+
+def test_manual_add_preserves_commas_and_quotes_in_name_and_region(tmp_path):
+    """Manual add builds a synthetic CSV row and routes it through import_csv
+    rather than a second insert path. A name or region containing a comma or a
+    double quote is exactly what would corrupt a hand-built CSV string; the
+    csv.writer/DictReader round trip must return them unchanged."""
+    client, path = _client(tmp_path)
+    client.post(
+        "/add/manual",
+        data={
+            "name": 'Acme, Inc. "The Best"',
+            "domain": "acme.invalid",
+            "region": "Med, Adriatic",
+        },
+        follow_redirects=True,
+    )
+    conn = db.connect(path)
+    rows = discover.list_brokers(conn)
+    assert len(rows) == 1
+    assert rows[0]["name"] == 'Acme, Inc. "The Best"'
+    assert rows[0]["region"] == "Med, Adriatic"
