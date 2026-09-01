@@ -3,13 +3,19 @@ import argparse
 import sys
 from pathlib import Path
 
-from bce import db, discover, profile, qualify, seed
+from bce import db, discover, drafting, profile, qualify, seed
+from bce.angles import AngleClient
+from bce.draft import DraftClient
 from bce.fetch import Fetcher
 from bce.llm import ProfileClient
 
 MAX_BROKERS = 50
 DEFAULT_QUALIFY_LIMIT = 20
 MAX_PROFILE_CALLS = 20
+#: Each broker drafted costs three Claude calls (angles, long, short) — see
+#: `drafting.draft_for_broker`. The ceiling below counts brokers, not calls,
+#: which is why the refusal message spells that out (spec §11.5).
+MAX_DRAFT_CALLS = 10
 
 
 def cmd_init(db_path: str) -> int:
@@ -185,6 +191,47 @@ def cmd_reprofile(db_path: str, domain: str | None = None) -> int:
     return 0
 
 
+def cmd_draft(db_path: str, limit: int = MAX_DRAFT_CALLS) -> int:
+    # Both sides, and checked before any client is constructed: SQLite treats
+    # a negative LIMIT as *unbounded*, and an upper-bound-only guard on
+    # `cmd_profile` let `--limit -1` bypass its ceiling entirely before a
+    # whole-branch review caught it (spec §11.5, same class of bug here).
+    if limit < 1 or limit > MAX_DRAFT_CALLS:
+        print(
+            f"refused: {limit} is outside the 1-{MAX_DRAFT_CALLS} broker ceiling "
+            f"(spec section 11.5). Each broker drafted costs three API calls "
+            f"(angles, long draft, short draft) -- this ceiling counts brokers, "
+            f"not calls. Raise it deliberately or correct --limit."
+        )
+        return 1
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    rows = discover.undrafted_brokers(conn, limit)
+    if not rows:
+        print("no profiled brokers awaiting a draft")
+        return 0
+    angle_client = AngleClient()
+    draft_client = DraftClient()
+    for row in rows:
+        result = drafting.draft_for_broker(conn, row["id"], angle_client, draft_client)
+        print(f"{row['domain']}: {_draft_label(result)}")
+    return 0
+
+
+def _draft_label(result) -> str:
+    """What actually happened, including the short-condensation-failed case.
+
+    Mirrors `_profile_label`: a caller must be able to tell "both formats
+    written" from "long draft kept, short condensation failed" rather than
+    both printing an unqualified "drafted".
+    """
+    if not result:
+        return "no draft written"
+    if not result.short_written:
+        return "long draft written (short condensation failed)"
+    return "drafted (long + short)"
+
+
 def cmd_seed_example(db_path: str) -> int:
     conn = db.connect(db_path)
     db.init_schema(conn)
@@ -222,6 +269,8 @@ def main(argv: list[str] | None = None) -> int:
         "domain", nargs="?",
         help="broker domain to reprofile; omit to clear every degraded profile",
     )
+    p_draft = sub.add_parser("draft")
+    p_draft.add_argument("--limit", type=int, default=MAX_DRAFT_CALLS)
     sub.add_parser("seed-example")
     p_serve = sub.add_parser("serve")
     p_serve.add_argument("--host", default="127.0.0.1")
@@ -242,6 +291,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_profile(args.db, args.limit)
     if args.command == "reprofile":
         return cmd_reprofile(args.db, args.domain)
+    if args.command == "draft":
+        return cmd_draft(args.db, args.limit)
     if args.command == "seed-example":
         return cmd_seed_example(args.db)
     if args.command == "serve":

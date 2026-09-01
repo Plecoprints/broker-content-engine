@@ -198,6 +198,30 @@ def unprofiled_brokers(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row
     ).fetchall()
 
 
+def undrafted_brokers(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
+    """Profiled brokers (a `voice_profile` row exists) with no draft yet
+    (spec §5 Stage 4/5).
+
+    A broker counts as drafted once any `draft` row exists for it — reached
+    via `angle.broker_id`, since `draft` itself only carries `angle_id`.
+    `drafting.draft_for_broker` never inserts an `angle` row without also
+    inserting its long-form `draft` row in the same commit, so this is
+    equivalent to "has an angle" in practice; phrased as `NOT EXISTS` over
+    `draft` (rather than over `angle`) so it stays correct even if that
+    invariant ever changes.
+    """
+    return conn.execute(
+        "SELECT b.id, b.domain FROM broker b "
+        "JOIN voice_profile v ON v.broker_id = b.id "
+        "WHERE NOT EXISTS ("
+        "  SELECT 1 FROM draft d JOIN angle a ON a.id = d.angle_id "
+        "  WHERE a.broker_id = b.id"
+        ") "
+        "ORDER BY b.name LIMIT ?",
+        (limit,),
+    ).fetchall()
+
+
 def clear_voice_profile(
     conn: sqlite3.Connection, *, domain: str | None = None
 ) -> int:
