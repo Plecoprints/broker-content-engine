@@ -1,0 +1,68 @@
+phrase,volume,difficulty,intent,theme,competitor_brand
+# Semrush keyword bank — database: us — measured_at: 2026-09-01
+# Every row already clears the §5b thresholds: difficulty < 30 AND volume > 100.
+# Source: Semrush phrase_these + phrase_related, thresholds applied server-side via display_filter.
+# intent: 0=commercial 1=informational 2=navigational 3=transactional
+# competitor_brand=1 rows are gated (§5b) and require an explicit human decision before use.
+catamaran for sale,8100,25,3,buying,0
+catamarans for sale,4400,24,3,buying,0
+difference between a yacht and a sailboat,2400,6,1,education,0
+power catamaran for sale,2400,17,3,buying,0
+what is a catamaran,1900,25,1,education,0
+yacht refit,1900,10,1,ownership,0
+power catamaran,1600,28,1,category,0
+catamaran club,1000,20,1,lifestyle,0
+sailing catamaran for sale,1000,23,3,buying,0
+used catamaran for sale,1000,28,3,buying,0
+catamaran sailboat for sale,1000,29,3,buying,0
+trimaran for sale,1000,17,3,buying,0
+cat boats for sale,880,18,3,buying,0
+catamaran rental,880,11,0,charter,0
+power catamarans for sale,880,23,3,buying,0
+small catamaran,880,26,1,category,0
+beach catamaran,720,23,1,category,0
+catamaran boats for sale,720,22,3,buying,0
+luxury catamaran,720,29,1,category,0
+sailing catamarans for sale,720,20,3,buying,0
+sale catamaran used,720,24,3,buying,0
+buy used catamaran,590,26,3,buying,0
+catamaran charters greece,590,11,0,charter,0
+catamaran for sale florida,590,9,3,buying,0
+monohull,590,11,1,education,0
+power cats for sale,590,13,3,buying,0
+rent a catamaran,590,10,0,charter,0
+catamaran vs monohull,480,3,0,education,0
+50 foot catamaran,480,23,1,size,0
+50 ft catamaran,480,20,1,size,0
+caribbean catamaran charter,480,26,1,charter,0
+largest sailing yacht,480,26,1,education,0
+sail catamaran for sale,480,22,3,buying,0
+40 foot catamaran,390,19,1,size,0
+catamaran boat rental,390,17,0,charter,0
+catamaran charter caribbean,390,29,1,charter,0
+catamaran cruise caribbean,390,14,1,charter,0
+catamaran cruisers,390,22,2,category,0
+catamaran fishing boat,390,24,0,category,0
+catamaran interior,390,19,1,design,0
+catamaran price,390,21,0,ownership,0
+electric catamaran,390,20,1,sustainability,0
+sailing the caribbean,320,13,1,cruising,0
+60 ft catamaran,260,15,1,size,0
+how much does a catamaran cost,260,16,1,ownership,0
+solar powered yacht,210,18,1,sustainability,0
+yacht insurance cost,210,26,1,ownership,0
+catamaran charter mediterranean,140,14,1,charter,0
+cruising catamaran,140,28,1,category,0
+liveaboard catamaran,140,24,1,lifestyle,0
+lagoon catamaran,2400,26,2,competitor,1
+lagoon catamarans,2400,29,2,competitor,1
+aquila boats,1900,22,2,competitor,1
+lagoon catamaran for sale,1000,16,3,competitor,1
+leopard catamaran,1000,13,1,competitor,1
+xquisite,720,22,0,competitor,1
+lagoon 46,590,10,1,competitor,1
+leopard catamaran for sale,590,15,3,competitor,1
+aquila boats for sale,480,11,3,competitor,1
+aquila 44,390,18,1,competitor,1
+aquila 44 for sale,390,6,3,competitor,1
+aquila yacht,390,26,1,competitor,1

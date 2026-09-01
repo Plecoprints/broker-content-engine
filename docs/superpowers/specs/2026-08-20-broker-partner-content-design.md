@@ -134,14 +134,28 @@ A keyword may be baked into a draft only if:
 - **Keyword difficulty < 30**, and
 - **Average monthly search volume > 100**
 
-Measured against real Semrush data for this niche, roughly **a third of candidate terms clear both bars**.
-The bar bites hardest at the top: every high-volume head term tested — `sailing catamaran` (3,600, KD 41),
-`luxury yacht charter` (8,100, KD 60), `yacht broker` (5,400, KD 78) — fails on difficulty. That is the
-point. A partner broker does not have Sunreef's domain authority, so an article aimed at those terms is an
-article that never ranks. The filter trades reach for winnability deliberately.
+Measured against real Semrush data for this niche, the thresholds are **selective but not scarce**. Some
+obvious head terms do fail on difficulty — `sailing catamaran` (3,600, KD 41), `luxury yacht charter`
+(8,100, KD 60), `yacht broker` (5,400, KD 78) — and a broker without Sunreef's domain authority would never
+rank for them, so an article aimed there is an article wasted.
+
+But the catamaran niche is **less contested than the surrounding luxury-yacht space**, and semantic
+expansion surfaces high-volume terms that comfortably qualify: `catamaran for sale` (8,100, KD 25),
+`catamarans for sale` (4,400, KD 24), `power catamaran for sale` (2,400, KD 17), `what is a catamaran`
+(1,900, KD 25), `difference between a yacht and a sailboat` (2,400, KD 6). This is the strategic finding
+behind the whole programme: **there is real, winnable search volume in catamarans specifically**, which is
+exactly the category Sunreef occupies.
 
 Both thresholds are **named constants, not literals**, and both are displayed in the UI so a broker
 understands the standard their content is held to rather than taking it on faith.
+
+### Competitor brand terms
+
+Semantic expansion surfaces competitor brand names that pass both filters — `lagoon catamaran` (2,400,
+KD 26), `leopard catamaran` (1,000, KD 13), `aquila boats` (1,900, KD 22). These are Sunreef's direct
+rivals. Ranking a partner broker for them is a defensible comparison play and a genuinely bad idea by
+turns, and it is **not a call the engine should make silently**. A named brand-exclusion list gates them;
+anything on it requires an explicit human decision before it can be baked into a draft.
 
 ### Keywords per format
 
