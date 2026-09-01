@@ -149,6 +149,31 @@ exactly the category Sunreef occupies.
 Both thresholds are **named constants, not literals**, and both are displayed in the UI so a broker
 understands the standard their content is held to rather than taking it on faith.
 
+### Editorial intent only
+
+Decided 2026-09-01. The content this engine produces is **editorial, not commercial**. A keyword is
+eligible only if its Semrush intent includes `Informational` and includes neither `Transactional` nor
+`Navigational`.
+
+- `Transactional` means the searcher wants to buy now. That is a product page, not an article, and an
+  article aimed there reads as a sales sheet — which is precisely the thing a broker will not publish
+  under their own masthead.
+- `Navigational` means the searcher wants one specific brand or site. There is nothing editorial to write.
+- **`Commercial` is retained.** Commercial-investigation intent is comparison and consideration content —
+  `power catamaran vs sailing catamaran` (KD 2), `sailing monohull vs. catamaran` (KD 3), `catamaran cost`
+  — which is the most editorial material in the entire bank. Excluding it would cost ~4,280 monthly
+  searches for no benefit.
+
+Measured against the operator's 243-keyword export, this rule is **nearly free**: of the 153 keywords that
+survive the relevance gate, it removes exactly **one** — `solar powered catamaran` (480, KD 21). Its
+near-synonyms `solar catamaran` (480, KD 23) and `electric catamaran` (390, KD 20) are pure-informational
+and survive, so the Sunreef Eco cluster stays intact.
+
+That the rule costs one keyword is the evidence that it is the right rule, not an argument that it does not
+matter: transactional intent and off-target subject matter turned out to be almost the same set. Eleven of
+the twelve transactional keywords in the export were already excluded as off-segment — rugs, inflatables,
+tourist day-trips.
+
 ### Competitor brand terms
 
 Semantic expansion surfaces competitor brand names that pass both filters — `lagoon catamaran` (2,400,
