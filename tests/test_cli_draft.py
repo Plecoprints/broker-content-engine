@@ -340,13 +340,13 @@ class _FakeAngleClient:
 
 
 class _FakeDraftClient:
-    def write_long(self, angle, profile, broker_name):
+    def write_long(self, angle, profile, broker_name, keywords=None):
         return "Long body."
 
-    def write_medium(self, long_body, profile, broker_name):
+    def write_medium(self, long_body, profile, broker_name, keywords=None):
         return "Medium body."
 
-    def write_short(self, long_body, profile):
+    def write_short(self, long_body, profile, keywords=None):
         return "Short body."
 
 

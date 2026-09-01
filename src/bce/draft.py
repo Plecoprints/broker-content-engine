@@ -74,6 +74,20 @@ MAX_TOKENS_SHORT = 768
 #: it must not use against the broker's own brand.
 COMPETITORS = ("Lagoon", "Fountaine Pajot", "Catana")
 
+#: Spec §5b: keywords go into the prompt as terms to work in, not a checklist
+#: to satisfy -- appended to every format's system prompt (static, present
+#: whether or not a given call actually carries keyword guidance) so the
+#: constraint holds even if a future caller forgets the reminder in the user
+#: turn. `_keyword_guidance` below is the per-call, data-carrying half: the
+#: actual selected phrases, only added when there is something to add.
+_KEYWORD_INSTRUCTION = (
+    "If keyword guidance is given below, work every keyword in naturally -- "
+    "as ordinary language a reader would not notice was chosen for search "
+    "intent -- and never stuff them in mechanically. The primary keyword "
+    "should appear in the title or the first paragraph, wherever it fits "
+    "naturally, not forced."
+)
+
 _LONG_SYSTEM = (
     "You draft a long-form PILLAR article for a yacht brokerage's own blog or "
     "journal -- a comprehensive, cornerstone piece on the topic, not a "
@@ -92,6 +106,7 @@ _LONG_SYSTEM = (
     "Never disparage or position against named competitors -- "
     f"{', '.join(COMPETITORS)} are never named or argued against, regardless "
     "of how relevant the comparison might seem."
+    + "\n\n" + _KEYWORD_INSTRUCTION
 )
 
 _MEDIUM_SYSTEM = (
@@ -117,6 +132,7 @@ _MEDIUM_SYSTEM = (
     "Never disparage or position against named competitors -- "
     f"{', '.join(COMPETITORS)} are never named or argued against, regardless "
     "of how relevant the comparison might seem."
+    + "\n\n" + _KEYWORD_INSTRUCTION
 )
 
 _SHORT_SYSTEM = (
@@ -137,6 +153,7 @@ _SHORT_SYSTEM = (
     "Never disparage or position against named competitors -- "
     f"{', '.join(COMPETITORS)} are never named or argued against, regardless "
     "of how relevant the comparison might seem."
+    + "\n\n" + _KEYWORD_INSTRUCTION
 )
 
 
@@ -207,6 +224,33 @@ def _profile_summary(profile: dict) -> str:
     return "\n".join(lines)
 
 
+def _keyword_guidance(keywords: dict | None) -> str | None:
+    """The selected primary/secondary keywords as a user-turn instruction
+    block, or None when there is nothing to add.
+
+    `keywords` is the shape `bce.keywords.select_for_draft` returns:
+    `{"primary": row_or_None, "secondary": [rows]}`. Both "the caller passed
+    nothing" and "the caller passed a selection where nothing qualified"
+    (spec §5b: primary is None) degrade to the same None here -- either way
+    the draft is written with no keyword guidance, never a forced substitute.
+    """
+    if not keywords:
+        return None
+    primary = keywords.get("primary")
+    if not primary:
+        return None
+    lines = [
+        "Keywords to work in naturally -- they must read as ordinary "
+        "language a person would actually write, never stuffed in "
+        "mechanically:",
+        f'- Primary: "{primary["phrase"]}" -- work this in where it fits '
+        "naturally, ideally in the title or the first paragraph.",
+    ]
+    for kw in keywords.get("secondary") or []:
+        lines.append(f'- Secondary: "{kw["phrase"]}"')
+    return "\n".join(lines)
+
+
 def _angle_summary(angle: dict) -> str:
     return (
         f"Title: {angle.get('title', '')}\n"
@@ -255,13 +299,20 @@ class DraftClient:
         text = _extract_text(response)
         return text or None
 
-    def write_long(self, angle: dict, profile: dict, broker_name: str) -> str | None:
+    def write_long(
+        self, angle: dict, profile: dict, broker_name: str, keywords: dict | None = None
+    ) -> str | None:
         """A comprehensive 2000-2300 word pillar article, or None on failure.
 
         No call is made without an angle: there is nothing to draft against.
         Targets the fixed pillar length (LONG_MIN_WORDS-LONG_MAX_WORDS), not
         this broker's typical_word_count -- spec v0.6 §5 moved that target to
         `write_medium`.
+
+        `keywords` is optional (spec §5b): the primary/secondary selection
+        `bce.keywords.select_for_draft` returns for this angle, or None. When
+        given, its guidance is appended to the prompt; when absent, or when
+        nothing qualified, the draft is written exactly as before.
         """
         if not angle:
             return None
@@ -272,11 +323,15 @@ class DraftClient:
             f"Voice profile (match as far as reasonably possible; not "
             f"binding at this length):\n{_profile_summary(profile)}"
         )
+        if guidance := _keyword_guidance(keywords):
+            user_content += f"\n\n{guidance}"
         return self._create(
             system=_LONG_SYSTEM, user_content=user_content, max_tokens=MAX_TOKENS_LONG
         )
 
-    def write_medium(self, long_body: str, profile: dict, broker_name: str) -> str | None:
+    def write_medium(
+        self, long_body: str, profile: dict, broker_name: str, keywords: dict | None = None
+    ) -> str | None:
         """A regular-length blog post condensed from `long_body`, matched to
         this broker's own typical_word_count -- or None on any failure.
 
@@ -284,6 +339,10 @@ class DraftClient:
         as `write_short`: the medium form must carry the same claims as the
         long form, which only the body actually contains. No call is made
         for an empty long body: there is nothing to condense.
+
+        `keywords` (spec §5b): this format's own selection -- a subset of the
+        long draft's (see `bce.keywords.select_for_draft`), not the same
+        object passed to `write_long`.
         """
         if not long_body:
             return None
@@ -291,18 +350,26 @@ class DraftClient:
         if word_count_line := _word_count_line(profile):
             lines.append(word_count_line)
         lines.append(f"Voice profile:\n{_profile_summary(profile)}")
+        if guidance := _keyword_guidance(keywords):
+            lines.append(guidance)
         user_content = "\n\n".join(lines)
         return self._create(
             system=_MEDIUM_SYSTEM, user_content=user_content, max_tokens=MAX_TOKENS_MEDIUM
         )
 
-    def write_short(self, long_body: str, profile: dict) -> str | None:
+    def write_short(
+        self, long_body: str, profile: dict, keywords: dict | None = None
+    ) -> str | None:
         """A headline plus 100-200 words condensed from `long_body`.
 
         Generated from the long draft's body, not the angle (spec §5): the
         short form must carry the same claims as the long form, which only
         the body -- not the angle it was written from -- actually contains.
         No call is made for an empty long body: there is nothing to condense.
+
+        `keywords` (spec §5b): the short format never carries secondaries
+        (`FORMAT_KEYWORD_COUNTS["short"]`), so in practice this is just the
+        primary -- still passed through the same shape as the other formats.
         """
         if not long_body:
             return None
@@ -310,6 +377,8 @@ class DraftClient:
             f"Long-form article to condense:\n\n{long_body}\n\n"
             f"Voice profile:\n{_profile_summary(profile)}"
         )
+        if guidance := _keyword_guidance(keywords):
+            user_content += f"\n\n{guidance}"
         return self._create(
             system=_SHORT_SYSTEM, user_content=user_content, max_tokens=MAX_TOKENS_SHORT
         )

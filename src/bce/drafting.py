@@ -16,6 +16,7 @@ import json
 import sqlite3
 from dataclasses import dataclass
 
+from bce import keywords as keyword_selection
 from bce.angles import best_angle
 
 
@@ -78,6 +79,32 @@ def _load_profile(row: sqlite3.Row) -> dict:
     }
 
 
+def _persist_draft_keywords(conn: sqlite3.Connection, draft_id: int, selection: dict) -> None:
+    """Write the `draft_keyword` rows for one already-inserted draft row, in
+    the same (still-uncommitted) transaction as that INSERT.
+
+    A draft whose keywords didn't save is worse than one with none, because
+    the UI would then misreport what's baked in -- so this is called
+    immediately after each draft INSERT, before `conn.commit()`, never as a
+    separate follow-up write. `selection` is the shape
+    `keywords.select_for_draft` returns; when nothing qualified, `primary` is
+    None and `secondary` is empty, so this writes nothing at all -- the
+    keyword panel is then expected to say so plainly (spec §5b/§9), not this
+    function.
+    """
+    primary = (selection or {}).get("primary")
+    if primary is not None:
+        conn.execute(
+            "INSERT INTO draft_keyword (draft_id, keyword_id, role) VALUES (?,?,?)",
+            (draft_id, primary["id"], "primary"),
+        )
+    for kw in (selection or {}).get("secondary") or []:
+        conn.execute(
+            "INSERT INTO draft_keyword (draft_id, keyword_id, role) VALUES (?,?,?)",
+            (draft_id, kw["id"], "secondary"),
+        )
+
+
 def draft_for_broker(
     conn: sqlite3.Connection, broker_id: int, angle_client, draft_client
 ) -> DraftResult:
@@ -131,15 +158,28 @@ def draft_for_broker(
         return DraftResult(written=False)
 
     angle = best_angle(angles)
-    long_body = draft_client.write_long(angle, profile, broker_name)
+
+    # Spec §5b: keyword selection is per-format (the long/medium/short slots
+    # differ), but always against this same angle+bank state, which is what
+    # gives medium/short their subset-of-long guarantee -- see
+    # `keywords.select_for_draft`'s docstring. Selection never blocks
+    # drafting: an empty bank or nothing-qualifies returns
+    # {"primary": None, "secondary": []}, and `DraftClient` degrades that to
+    # "no keyword guidance in the prompt" (see `draft._keyword_guidance`).
+    long_keywords = keyword_selection.select_for_draft(conn, "long", angle)
+    long_body = draft_client.write_long(angle, profile, broker_name, keywords=long_keywords)
     if not long_body:
         return DraftResult(written=False)
 
     # Independent attempts: neither call short-circuits the other, and
     # either one failing must not stop the other from being written (spec
     # v0.6 §5's partial-failure semantics, extended from short-only to both).
-    medium_body = draft_client.write_medium(long_body, profile, broker_name)
-    short_body = draft_client.write_short(long_body, profile)
+    medium_keywords = keyword_selection.select_for_draft(conn, "medium", angle)
+    medium_body = draft_client.write_medium(
+        long_body, profile, broker_name, keywords=medium_keywords
+    )
+    short_keywords = keyword_selection.select_for_draft(conn, "short", angle)
+    short_body = draft_client.write_short(long_body, profile, keywords=short_keywords)
 
     cursor = conn.execute(
         "INSERT INTO angle (broker_id, title, premise, audience_value, "
@@ -155,28 +195,31 @@ def draft_for_broker(
     )
     angle_id = cursor.lastrowid
 
-    conn.execute(
+    long_cursor = conn.execute(
         "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
         "VALUES (?,?,?,?,?)",
         (angle_id, long_body, len(long_body.split()), "pending_review", "long"),
     )
+    _persist_draft_keywords(conn, long_cursor.lastrowid, long_keywords)
 
     medium_written = False
     if medium_body:
-        conn.execute(
+        medium_cursor = conn.execute(
             "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
             "VALUES (?,?,?,?,?)",
             (angle_id, medium_body, len(medium_body.split()), "pending_review", "medium"),
         )
+        _persist_draft_keywords(conn, medium_cursor.lastrowid, medium_keywords)
         medium_written = True
 
     short_written = False
     if short_body:
-        conn.execute(
+        short_cursor = conn.execute(
             "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
             "VALUES (?,?,?,?,?)",
             (angle_id, short_body, len(short_body.split()), "pending_review", "short"),
         )
+        _persist_draft_keywords(conn, short_cursor.lastrowid, short_keywords)
         short_written = True
 
     conn.commit()

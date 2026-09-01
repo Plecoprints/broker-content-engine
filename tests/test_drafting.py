@@ -25,6 +25,12 @@ class FakeAngleClient:
 
 
 class FakeDraftClient:
+    """Mirrors `draft.DraftClient`'s public shape, including the optional
+    `keywords=` kwarg (spec §5b) each `write_*` now accepts -- captured here
+    (not just accepted) so tests can assert on exactly what selection the
+    orchestrator passed through for each format.
+    """
+
     def __init__(self, long_body="Long body.", medium_body="Medium body.",
                  short_body="Short body."):
         self.long_body = long_body
@@ -34,20 +40,24 @@ class FakeDraftClient:
         self.medium_calls = []
         self.short_calls = []
 
-    def write_long(self, angle, profile, broker_name):
+    def write_long(self, angle, profile, broker_name, keywords=None):
         self.long_calls.append(
-            {"angle": angle, "profile": profile, "broker_name": broker_name}
+            {"angle": angle, "profile": profile, "broker_name": broker_name,
+             "keywords": keywords}
         )
         return self.long_body
 
-    def write_medium(self, long_body, profile, broker_name):
+    def write_medium(self, long_body, profile, broker_name, keywords=None):
         self.medium_calls.append(
-            {"long_body": long_body, "profile": profile, "broker_name": broker_name}
+            {"long_body": long_body, "profile": profile, "broker_name": broker_name,
+             "keywords": keywords}
         )
         return self.medium_body
 
-    def write_short(self, long_body, profile):
-        self.short_calls.append({"long_body": long_body, "profile": profile})
+    def write_short(self, long_body, profile, keywords=None):
+        self.short_calls.append(
+            {"long_body": long_body, "profile": profile, "keywords": keywords}
+        )
         return self.short_body
 
 

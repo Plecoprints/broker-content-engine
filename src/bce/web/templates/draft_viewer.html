@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_keyword_panel.html" import keyword_panel %}
 {% block title %}Drafts — {{ broker["name"] }} — Broker Content Engine{% endblock %}
 {% block content %}
   {% if message %}
@@ -68,6 +69,7 @@
         {% for para in long_draft["body_md"] | paragraphs %}
           <p>{{ para }}</p>
         {% endfor %}
+        {{ keyword_panel(long_keywords, max_difficulty, min_volume) }}
       {% else %}
         <p class="muted">No long draft on file for this angle.</p>
       {% endif %}
@@ -86,6 +88,7 @@
         {% for para in medium_draft["body_md"] | paragraphs %}
           <p>{{ para }}</p>
         {% endfor %}
+        {{ keyword_panel(medium_keywords, max_difficulty, min_volume) }}
       {% else %}
         <div class="empty-state">
           <p>Medium condensation failed for this draft. The long draft above
@@ -109,6 +112,7 @@
         {% for para in short_draft["body_md"] | paragraphs %}
           <p>{{ para }}</p>
         {% endfor %}
+        {{ keyword_panel(short_keywords, max_difficulty, min_volume) }}
       {% else %}
         <div class="empty-state">
           <p>Short condensation failed for this draft. The long draft above

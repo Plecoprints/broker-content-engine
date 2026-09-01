@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from bce import db, discover
+from bce import db, discover, keywords
 from bce.cli import MAX_BROKERS
 
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -54,6 +54,32 @@ def _paragraphs(body: str | None) -> list[str]:
     if not body:
         return []
     return [p.strip() for p in body.split("\n\n") if p.strip()]
+
+
+def _keywords_for_draft(conn, draft) -> dict:
+    """The primary/secondary keyword selection actually baked into `draft`
+    (a `sqlite3.Row` or None), read back from `draft_keyword` joined to
+    `keyword` -- the same `{"primary": row_or_None, "secondary": [rows]}`
+    shape `bce.keywords.select_for_draft` returns, so the keyword panel
+    partial (`_keyword_panel.html`) works from one shape regardless of
+    whether it is fed a fresh selection or, as here, a persisted one.
+
+    A draft with no row at all (condensation failed, or no draft yet) has no
+    keywords to show -- returns the same empty shape `select_for_draft`
+    returns when nothing qualified, so the panel's "no keyword" branch reads
+    identically either way.
+    """
+    if draft is None:
+        return {"primary": None, "secondary": []}
+    rows = conn.execute(
+        "SELECT k.*, dk.role FROM draft_keyword dk "
+        "JOIN keyword k ON k.id = dk.keyword_id "
+        "WHERE dk.draft_id=?",
+        (draft["id"],),
+    ).fetchall()
+    primary = next((dict(r) for r in rows if r["role"] == "primary"), None)
+    secondary = [dict(r) for r in rows if r["role"] == "secondary"]
+    return {"primary": primary, "secondary": secondary}
 
 
 def _broker_count(conn) -> int:
@@ -127,6 +153,11 @@ def create_app(db_path: str) -> FastAPI:
                 "long_draft": long_draft,
                 "medium_draft": medium_draft,
                 "short_draft": short_draft,
+                "long_keywords": _keywords_for_draft(conn, long_draft),
+                "medium_keywords": _keywords_for_draft(conn, medium_draft),
+                "short_keywords": _keywords_for_draft(conn, short_draft),
+                "max_difficulty": keywords.MAX_DIFFICULTY,
+                "min_volume": keywords.MIN_VOLUME,
                 **_flash(request),
             },
         )

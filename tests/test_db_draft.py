@@ -65,12 +65,19 @@ def test_init_schema_migrates_an_old_shaped_draft_asset_table():
     assert "draft_asset.usage_rights_confirmed" in added
 
 
-def test_schema_version_bumped_to_3():
-    """SCHEMA_VERSION is incremented to 3 (draft.format CHECK grew a table
-    rebuild, per spec v0.6's three-format change -- SQLite cannot ALTER a
-    CHECK in place, so this is a real shape change, not just an added column).
+def test_schema_version_at_least_3():
+    """SCHEMA_VERSION reached 3 (draft.format CHECK grew a table rebuild, per
+    spec v0.6's three-format change -- SQLite cannot ALTER a CHECK in place,
+    so this is a real shape change, not just an added column).
+
+    Was `test_schema_version_bumped_to_3` asserting `== 3` exactly; loosened
+    to `>= 3` because spec §5b/§8's keyword-targeting task bumped it again to
+    4 (see test_db_keywords.py test_init_schema_migrates_an_old_shaped_
+    database_gains_keyword_tables) -- pinning this test to the literal value 3
+    would make it fail on every future bump for a reason unrelated to what it
+    actually tests (the v2->v3 draft.format rebuild happened and is not lost).
     """
-    assert db.SCHEMA_VERSION == 3
+    assert db.SCHEMA_VERSION >= 3
 
 
 def test_format_column_is_text():
