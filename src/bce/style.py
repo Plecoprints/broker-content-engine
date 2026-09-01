@@ -41,7 +41,7 @@ def typical_word_count(texts: list[str]) -> int:
     return round(statistics.median(counts))
 
 
-def structure_pattern(texts: list[str]) -> str:
+def structure_pattern(paragraph_lists: list[list[str]]) -> str:
     """Article shape as a JSON object in a TEXT column (spec §10.3 *Tailored*).
 
     JSON, not prose: Stage 4 has to *score* structure match against this, which
@@ -57,14 +57,14 @@ def structure_pattern(texts: list[str]) -> str:
     null}` — still parseable JSON, and distinguishable from real data by the
     nulls rather than by an in-band `"unknown"` sentinel a parser would have to
     special-case.
+
+    Accepts paragraph_lists: list[list[str]] where each inner list is the
+    paragraphs of a single article, as extracted by extract_paragraphs.
     """
-    # Compute per-article statistics, skipping texts with zero paragraphs
+    # Compute per-article statistics, skipping articles with zero paragraphs
     per_text_stats = []
-    for text in texts:
-        paragraphs = [
-            p for p in _PARA_SPLIT.split(text.strip()) if p.strip()
-        ]
-        if paragraphs:  # Only include texts with at least one paragraph
+    for paragraphs in paragraph_lists:
+        if paragraphs:  # Only include articles with at least one paragraph
             num_paras = len(paragraphs)
             words_per_para = [len(_words(p)) for p in paragraphs]
             per_text_stats.append((num_paras, statistics.fmean(words_per_para)))

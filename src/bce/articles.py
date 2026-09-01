@@ -12,6 +12,7 @@ still goes through `Fetcher.get` (robots.txt, ≥2s per host — spec §10.2) an
 every bound below is checked *before* a fetch, never after.
 """
 import trafilatura
+from selectolax.parser import HTMLParser
 
 from bce.detectors import find_post_links, looks_like_index
 
@@ -43,6 +44,31 @@ def extract_article_text(html: str) -> str | None:
         return None
 
 
+def extract_paragraphs(html: str) -> list[str]:
+    """Paragraph texts from <p> nodes, boilerplate stripped, empties dropped.
+
+    Trafilatura joins paragraphs without newlines, losing structure. This
+    recovers individual paragraphs by parsing HTML directly with selectolax
+    after stripping nav/header/footer/aside/script/style tags.
+    """
+    if not html:
+        return []
+
+    tree = HTMLParser(html or "")
+    # Strip boilerplate tags following the pattern in detectors._parse_without_code
+    boilerplate_tags = ("script", "style", "noscript", "template", "nav", "header", "footer", "aside")
+    tree.strip_tags(list(boilerplate_tags))
+
+    # Extract all <p> tags
+    paragraphs = []
+    for p_node in tree.css("p"):
+        text = p_node.text(separator=" ").strip()
+        if text:  # Only include non-empty paragraphs
+            paragraphs.append(text)
+
+    return paragraphs
+
+
 def _article_text(html: str | None) -> str | None:
     """Extracted text that is long enough to be an article, else None."""
     if html is None:
@@ -53,26 +79,32 @@ def _article_text(html: str | None) -> str | None:
     return None
 
 
-def collect_articles(fetcher, editorial_urls: list[str]) -> list[str]:
-    """Up to MAX_ARTICLES_PER_BROKER article texts, skipping pages that yield none.
+def collect_articles(fetcher, editorial_urls: list[str]) -> tuple[list[str], list[list[str]]]:
+    """Up to MAX_ARTICLES_PER_BROKER article texts and their paragraph lists.
 
     The single-level primitive: fetch each URL, extract, keep whatever comes back.
     Stage 3 uses `collect_broker_articles` instead, which walks index → post.
+
+    Returns (texts, paragraph_lists) where:
+    - texts: flat extracted text for each article (for sentence/word analysis)
+    - paragraph_lists: individual paragraphs per article (for structure analysis)
     """
-    articles: list[str] = []
+    texts: list[str] = []
+    paragraphs_per_article: list[list[str]] = []
     for url in editorial_urls:
-        if len(articles) >= MAX_ARTICLES_PER_BROKER:
+        if len(texts) >= MAX_ARTICLES_PER_BROKER:
             break
         html = fetcher.get(url)
         if html is None:
             continue
         text = extract_article_text(html)
         if text:
-            articles.append(text)
-    return articles
+            texts.append(text)
+            paragraphs_per_article.append(extract_paragraphs(html))
+    return texts, paragraphs_per_article
 
 
-def collect_broker_articles(fetcher, editorial_urls: list[str]) -> list[str]:
+def collect_broker_articles(fetcher, editorial_urls: list[str]) -> tuple[list[str], list[list[str]]]:
     """Article bodies for one broker, following editorial indexes to their posts.
 
     For each editorial section URL (up to MAX_INDEX_PAGES): fetch it once, and
@@ -92,13 +124,18 @@ def collect_broker_articles(fetcher, editorial_urls: list[str]) -> list[str]:
     Pages yielding less than MIN_ARTICLE_CHARS of text are discarded rather than
     profiled: statistics derived from teaser fragments are confidently wrong, and
     Stage 4 conditions drafting on them (spec §5, §10.3).
+
+    Returns (texts, paragraph_lists) where:
+    - texts: flat extracted text for each article (for sentence/word analysis)
+    - paragraph_lists: individual paragraphs per article (for structure analysis)
     """
-    articles: list[str] = []
+    texts: list[str] = []
+    paragraphs_per_article: list[list[str]] = []
     seen_posts: set[str] = set()
     posts_fetched = 0
 
     for index_url in editorial_urls[:MAX_INDEX_PAGES]:
-        if len(articles) >= MAX_ARTICLES_PER_BROKER:
+        if len(texts) >= MAX_ARTICLES_PER_BROKER:
             break
         index_html = fetcher.get(index_url)
         if index_html is None:
@@ -110,11 +147,12 @@ def collect_broker_articles(fetcher, editorial_urls: list[str]) -> list[str]:
                 continue  # an index whose links all fell out: never an article
             direct = _article_text(index_html)
             if direct is not None:
-                articles.append(direct)
+                texts.append(direct)
+                paragraphs_per_article.append(extract_paragraphs(index_html))
             continue
 
         for post_url in post_urls:
-            if len(articles) >= MAX_ARTICLES_PER_BROKER:
+            if len(texts) >= MAX_ARTICLES_PER_BROKER:
                 break
             if posts_fetched >= MAX_POST_CANDIDATES:
                 break
@@ -122,8 +160,10 @@ def collect_broker_articles(fetcher, editorial_urls: list[str]) -> list[str]:
                 continue
             seen_posts.add(post_url)
             posts_fetched += 1
-            text = _article_text(fetcher.get(post_url))
+            post_html = fetcher.get(post_url)
+            text = _article_text(post_html)
             if text is not None:
-                articles.append(text)
+                texts.append(text)
+                paragraphs_per_article.append(extract_paragraphs(post_html))
 
-    return articles
+    return texts, paragraphs_per_article

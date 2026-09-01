@@ -53,27 +53,28 @@ def test_extract_does_not_raise_on_garbage():
 
 def test_collect_articles_gathers_text_from_each_url():
     pages = {"https://a.invalid/1": ARTICLE_HTML, "https://a.invalid/2": ARTICLE_HTML}
-    got = collect_articles(FakeFetcher(pages), list(pages))
-    assert len(got) == 2
-    assert all("Beam matters" in t for t in got)
+    texts, _ = collect_articles(FakeFetcher(pages), list(pages))
+    assert len(texts) == 2
+    assert all("Beam matters" in t for t in texts)
 
 
 def test_collect_articles_skips_unfetchable_and_empty_pages():
     pages = {"https://a.invalid/1": None, "https://a.invalid/2": ARTICLE_HTML}
-    got = collect_articles(FakeFetcher(pages), list(pages))
-    assert len(got) == 1
+    texts, _ = collect_articles(FakeFetcher(pages), list(pages))
+    assert len(texts) == 1
 
 
 def test_collect_articles_is_bounded():
     urls = [f"https://a.invalid/{i}" for i in range(12)]
     fetcher = FakeFetcher({u: ARTICLE_HTML for u in urls})
-    got = collect_articles(fetcher, urls)
-    assert len(got) == MAX_ARTICLES_PER_BROKER
+    texts, _ = collect_articles(fetcher, urls)
+    assert len(texts) == MAX_ARTICLES_PER_BROKER
     assert len(fetcher.calls) == MAX_ARTICLES_PER_BROKER
 
 
 def test_collect_articles_handles_no_urls():
-    assert collect_articles(FakeFetcher({}), []) == []
+    texts, paragraphs = collect_articles(FakeFetcher({}), [])
+    assert texts == [] and paragraphs == []
 
 
 # --- C1: the two-level walk --------------------------------------------------
@@ -104,10 +105,11 @@ def test_collect_broker_articles_follows_an_index_to_its_posts():
     pages.update({f"https://a.invalid{p}": _post_page(p) for p in paths})
     fetcher = FakeFetcher(pages)
 
-    got = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
-    assert len(got) == 3
-    assert all(len(t) >= MIN_ARTICLE_CHARS for t in got)
-    assert "Teaser." not in " ".join(got)
+    texts, paragraphs = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
+    assert len(texts) == 3
+    assert all(len(t) >= MIN_ARTICLE_CHARS for t in texts)
+    assert "Teaser." not in " ".join(texts)
+    assert len(paragraphs) == 3
 
 
 def test_collect_broker_articles_follows_flat_permalinks():
@@ -116,8 +118,8 @@ def test_collect_broker_articles_follows_flat_permalinks():
     pages.update({f"https://a.invalid{p}": _post_page(p) for p in paths})
     fetcher = FakeFetcher(pages)
 
-    got = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
-    assert len(got) == 3
+    texts, paragraphs = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
+    assert len(texts) == 3
     for path in paths:
         assert f"https://a.invalid{path}" in fetcher.calls
 
@@ -125,15 +127,16 @@ def test_collect_broker_articles_follows_flat_permalinks():
 def test_collect_broker_articles_keeps_an_editorial_page_that_is_itself_an_article():
     pages = {"https://a.invalid/journal": _post_page("One long journal page")}
     fetcher = FakeFetcher(pages)
-    got = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
-    assert len(got) == 1
+    texts, paragraphs = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
+    assert len(texts) == 1
     # No second hop needed, so nothing beyond the editorial URL was fetched.
     assert fetcher.calls == ["https://a.invalid/journal"]
 
 
 def test_collect_broker_articles_discards_a_thin_index():
     pages = {"https://a.invalid/journal": _index_page([])}
-    assert collect_broker_articles(FakeFetcher(pages), ["https://a.invalid/journal"]) == []
+    texts, paragraphs = collect_broker_articles(FakeFetcher(pages), ["https://a.invalid/journal"])
+    assert texts == [] and paragraphs == []
 
 
 def test_collect_broker_articles_discards_thin_posts():
@@ -142,7 +145,8 @@ def test_collect_broker_articles_discards_thin_posts():
         "https://a.invalid/journal/stub":
             "<html><body><article><p>Coming soon.</p></article></body></html>",
     }
-    assert collect_broker_articles(FakeFetcher(pages), ["https://a.invalid/journal"]) == []
+    texts, paragraphs = collect_broker_articles(FakeFetcher(pages), ["https://a.invalid/journal"])
+    assert texts == [] and paragraphs == []
 
 
 def test_collect_broker_articles_stops_at_the_article_bound_before_fetching():
@@ -151,8 +155,8 @@ def test_collect_broker_articles_stops_at_the_article_bound_before_fetching():
     pages.update({f"https://a.invalid{p}": _post_page(p) for p in paths})
     fetcher = FakeFetcher(pages)
 
-    got = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
-    assert len(got) == MAX_ARTICLES_PER_BROKER
+    texts, paragraphs = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
+    assert len(texts) == MAX_ARTICLES_PER_BROKER
     # One index fetch plus exactly MAX_ARTICLES_PER_BROKER post fetches: the
     # bound is checked before each fetch, never after (spec §10.2).
     assert len(fetcher.calls) == 1 + MAX_ARTICLES_PER_BROKER
@@ -169,7 +173,8 @@ def test_collect_broker_articles_caps_wasted_post_fetches():
     })
     fetcher = FakeFetcher(pages)
 
-    assert collect_broker_articles(fetcher, ["https://a.invalid/journal"]) == []
+    texts, paragraphs = collect_broker_articles(fetcher, ["https://a.invalid/journal"])
+    assert texts == [] and paragraphs == []
     assert len(fetcher.calls) == 1 + MAX_POST_CANDIDATES
 
 
@@ -191,13 +196,15 @@ def test_a_busy_index_does_not_qualify_as_an_article_on_length_alone():
         f"https://a.invalid{p}": "<html><body><article><p>Soon.</p></article></body></html>"
         for p in paths
     })
-    assert collect_broker_articles(FakeFetcher(pages), ["https://a.invalid/journal"]) == []
+    texts, paragraphs = collect_broker_articles(FakeFetcher(pages), ["https://a.invalid/journal"])
+    assert texts == [] and paragraphs == []
 
 
 def test_collect_broker_articles_bounds_the_index_pages_it_follows():
     urls = [f"https://a.invalid/news{i}" for i in range(9)]
     fetcher = FakeFetcher({u: _index_page([]) for u in urls})
-    assert collect_broker_articles(fetcher, urls) == []
+    texts, paragraphs = collect_broker_articles(fetcher, urls)
+    assert texts == [] and paragraphs == []
     assert len(fetcher.calls) == MAX_INDEX_PAGES
 
 
@@ -210,16 +217,18 @@ def test_collect_broker_articles_does_not_refetch_a_post_two_indexes_share():
     pages.update({f"https://a.invalid{p}": _post_page(p) for p in paths})
     fetcher = FakeFetcher(pages)
 
-    got = collect_broker_articles(
+    texts, paragraphs = collect_broker_articles(
         fetcher, ["https://a.invalid/journal", "https://a.invalid/news"]
     )
-    assert len(got) == 2
+    assert len(texts) == 2
     assert len(fetcher.calls) == len(set(fetcher.calls))
 
 
 def test_collect_broker_articles_skips_an_unfetchable_index():
-    assert collect_broker_articles(FakeFetcher({}), ["https://a.invalid/journal"]) == []
+    texts, paragraphs = collect_broker_articles(FakeFetcher({}), ["https://a.invalid/journal"])
+    assert texts == [] and paragraphs == []
 
 
 def test_collect_broker_articles_handles_no_editorial_urls():
-    assert collect_broker_articles(FakeFetcher({}), []) == []
+    texts, paragraphs = collect_broker_articles(FakeFetcher({}), [])
+    assert texts == [] and paragraphs == []

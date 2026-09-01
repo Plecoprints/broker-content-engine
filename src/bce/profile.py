@@ -79,11 +79,11 @@ def profile_broker(
     if html is None:
         return ProfileResult(written=False)
 
-    articles = collect_broker_articles(fetcher, find_editorial_urls(html, url))
-    if sum(len(a) for a in articles) < MIN_CORPUS_CHARS:
+    texts, paragraph_lists = collect_broker_articles(fetcher, find_editorial_urls(html, url))
+    if sum(len(a) for a in texts) < MIN_CORPUS_CHARS:
         return ProfileResult(written=False)
 
-    judgement = profile_client.classify(articles)
+    judgement = profile_client.classify(texts)
     if not isinstance(judgement, dict):
         judgement = {}
 
@@ -107,13 +107,13 @@ def profile_broker(
         (
             broker_id,
             register,
-            style.avg_sentence_length(articles),
-            style.typical_word_count(articles),
-            style.structure_pattern(articles),
+            style.avg_sentence_length(texts),
+            style.typical_word_count(texts),
+            style.structure_pattern(paragraph_lists),
             json.dumps(vocabulary_markers),
             json.dumps(themes),
             audience_signal,
-            json.dumps(style.select_quotes(articles)),
+            json.dumps(style.select_quotes(texts)),
             datetime.now(timezone.utc).isoformat(timespec="seconds"),
         ),
     )

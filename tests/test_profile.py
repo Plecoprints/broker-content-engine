@@ -329,12 +329,15 @@ def test_empty_judgement_still_writes_the_deterministic_half():
 
 def test_statistics_come_from_the_posts_not_the_journal_index():
     """The defect, end to end: index -> teaser fragments -> a 21-word 'article'."""
-    from bce.articles import extract_article_text
+    from bce.articles import extract_article_text, extract_paragraphs
 
     # What the old code would have profiled: the index page's teaser fragments.
+    # Note: structure_pattern now receives paragraph lists, not flat text.
+    # For the index, we extract its paragraphs (which will be shallow teaser cards).
     index_text = extract_article_text(JOURNAL_INDEX)
     index_words = style.typical_word_count([index_text])
-    index_shape = json.loads(style.structure_pattern([index_text]))
+    index_paragraphs = extract_paragraphs(JOURNAL_INDEX)
+    index_shape = json.loads(style.structure_pattern([index_paragraphs]))
     assert index_words < 30  # ~21 words of card titles and teasers
 
     conn, bid = _qualified_broker()
@@ -344,10 +347,11 @@ def test_statistics_come_from_the_posts_not_the_journal_index():
 
     row = conn.execute("SELECT * FROM voice_profile WHERE broker_id=?", (bid,)).fetchone()
     # The posts are ~146 words each; the index is ~21. The row must describe the
-    # posts.
+    # posts. Now with paragraph recovery, structure_pattern reflects real paragraphs.
     assert row["typical_word_count"] > 100
     shape = json.loads(row["structure_pattern"])
-    assert shape["words_per_paragraph"] > 100
+    # With real paragraph extraction, we expect larger words_per_paragraph from posts
+    assert shape["words_per_paragraph"] > 30  # posts have deeper paragraphs
     assert shape["words_per_paragraph"] != index_shape["words_per_paragraph"]
     assert row["avg_sentence_len"] > 20  # long, subordinate-clause sentences
 

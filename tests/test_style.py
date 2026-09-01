@@ -1,12 +1,24 @@
 import json
+import re
 
 import pytest
 from bce.style import avg_sentence_length, structure_pattern, typical_word_count
 
+_PARA_SPLIT = re.compile(r"\n\s*\n+")
+
 
 def _shape(texts):
-    """structure_pattern parsed back (I7: it stores JSON, like its siblings)."""
-    return json.loads(structure_pattern(texts))
+    """structure_pattern parsed back (I7: it stores JSON, like its siblings).
+
+    Converts flat texts (with \n\n paragraph breaks) into paragraph lists
+    for structure_pattern to analyze.
+    """
+    # Convert flat texts with \n\n breaks into paragraph lists
+    paragraph_lists = []
+    for text in texts:
+        paras = [p for p in _PARA_SPLIT.split(text.strip()) if p.strip()]
+        paragraph_lists.append(paras)
+    return json.loads(structure_pattern(paragraph_lists))
 
 
 def test_avg_sentence_length_counts_words_per_sentence():
@@ -45,7 +57,8 @@ def test_structure_pattern_reports_paragraphs_and_density():
 
 def test_structure_pattern_stores_json_so_stage_4_can_score_structure():
     """I7: siblings in the same INSERT store JSON; §10.3 needs numbers, not prose."""
-    raw = structure_pattern(["First para here.\n\nSecond para here."])
+    paragraph_lists = [["First para here.", "Second para here."]]
+    raw = structure_pattern(paragraph_lists)
     parsed = json.loads(raw)  # must not raise
     assert isinstance(parsed["paragraphs_per_article"], int)
     assert isinstance(parsed["words_per_paragraph"], int)
