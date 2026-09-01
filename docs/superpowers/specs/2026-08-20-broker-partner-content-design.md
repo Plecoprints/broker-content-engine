@@ -223,6 +223,39 @@ A review gate with no surface to operate it is a gate nobody walks through. This
 - No destructive actions without confirmation. Rejecting a draft archives it; nothing is hard-deleted.
 - Every state change writes `reviewed_by` and a timestamp. The audit trail is the point.
 
+## 9b. Broker-facing portal (committed, not yet designed)
+
+Decided 2026-09-01. **Everything in §9 is the admin side — ours.** A second surface follows: a portal
+where each broker signs in and collects the content produced for them, refreshed weekly.
+
+This is a different system from §9, not an extension of it, and the differences are the hard part:
+
+| §9 admin UI (built) | §9b broker portal (not built) |
+|---|---|
+| Localhost, no auth | Public host, real authentication |
+| One operator, sees everything | Multi-tenant — **broker A must never see broker B's content** |
+| SQLite file | Hosted database |
+| No secrets | Password hashing, sessions, reset flows |
+| Read-only reviewing | Broker-facing delivery |
+
+**This fires the Supabase adoption trigger** recorded in §7 — "a second human in the system." Row-level
+security is the reason: the worst failure this system can have is one broker seeing another's drafts,
+and that is a database-level guarantee, not something to hand-roll in application code.
+
+**Consequences that land before the portal is built:**
+
+- **§7's `AssetProvider` stops being optional.** A portal implies each broker collects a recommended
+  image alongside the copy. That is the Dropbox library the creative team is building.
+- **§10.7 usage rights become an exposure, not a note.** Self-serve download by a third party is a
+  different act from a human emailing an image with context. Settle the rights language with creative
+  before any asset reaches the portal.
+- **Weekly cadence implies scheduling** — something must decide what each broker gets each week, and
+  the §11.5 spend ceiling was written for manual operator runs, not a recurring job.
+- **Nothing built so far is wasted.** The engine, the shortlist, the profiles and the admin UI all
+  stand. The portal reads the same data through a different door.
+
+Not designed here. Recorded so the admin/broker split is deliberate rather than discovered late.
+
 ## 10. Compliance and ethics constraints
 
 Requirements, not preferences:
