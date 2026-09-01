@@ -1,25 +1,37 @@
-"""Long-form drafting (spec §5 Stage 4, spec §2, §3).
+"""Long- and short-form drafting (spec §5 Stage 4/5, spec §2, §3).
 
-Shares the failure contract of `bce.angles.AngleClient` and
+Two calls, sharing the failure contract of `bce.angles.AngleClient` and
 `bce.llm.ProfileClient`: the client is injectable and lazily constructed so no
 test needs an API key, and every failure -- `anthropic.APIError`, a safety
 refusal, or a response with no usable text -- degrades to `None`, never
 raises.
 
 Unlike `angles.propose` / `llm.classify`, the payload here is prose (an
-article body), not a value we persist as structured columns, so there is no
-`output_config` JSON schema and no clamp step; the failure-handling shape is
-the only thing carried over from that pattern.
+article body, a newsletter blurb), not a value we persist as structured
+columns, so there is no `output_config` JSON schema and no clamp step; the
+failure-handling shape is the only thing carried over from that pattern.
+
+`write_short` takes the long draft's BODY, not the angle, because spec §5 is
+explicit that the short form is "a condensation of the long form, not a
+separate piece: same angle, same claims, same voice" -- two independent
+generations against the angle would drift, and a broker publishing both would
+read as incoherent.
 """
 import anthropic
 
 MODEL = "claude-opus-5"
 
 #: Long-form is a full article matched to the broker's own typical_word_count
-#: (spec §5). Sized generously above it (~1.5 tokens/word plus overhead for
-#: instructions) rather than tied to a specific broker's word count, since
-#: max_tokens bounds the call, not the target length.
+#: (spec §5); short-form is a headline plus 100-200 words (spec §5). Token
+#: ceilings are sized generously above each (~1.5 tokens/word plus overhead
+#: for the headline and instructions) rather than tied to a specific broker's
+#: word count, since max_tokens bounds the call, not the target length.
 MAX_TOKENS_LONG = 4096
+MAX_TOKENS_SHORT = 768
+
+#: Spec §5: the short form is "headline, 100-200 words".
+SHORT_MIN_WORDS = 100
+SHORT_MAX_WORDS = 200
 
 #: Spec §2: "Content never positions against Lagoon, Fountaine Pajot, Catana,
 #: or others by name." Named explicitly in the system prompt (not just
@@ -39,6 +51,17 @@ _LONG_SYSTEM = (
     "Never disparage or position against named competitors -- "
     f"{', '.join(COMPETITORS)} are never named or argued against, regardless "
     "of how relevant the comparison might seem."
+)
+
+_SHORT_SYSTEM = (
+    "You condense a long-form article into a newsletter blurb for the same "
+    "yacht brokerage: a headline plus "
+    f"{SHORT_MIN_WORDS}-{SHORT_MAX_WORDS} words. "
+    "This is a condensation of the long-form article given to you below, not "
+    "a separate piece -- keep the same angle, the same claims, and the same "
+    "voice as that article. Do not introduce facts, figures, or claims that "
+    "are not already in the long-form article, and match the register and "
+    "vocabulary described in the voice profile."
 )
 
 
@@ -146,4 +169,22 @@ class DraftClient:
         )
         return self._create(
             system=_LONG_SYSTEM, user_content=user_content, max_tokens=MAX_TOKENS_LONG
+        )
+
+    def write_short(self, long_body: str, profile: dict) -> str | None:
+        """A headline plus 100-200 words condensed from `long_body`.
+
+        Generated from the long draft's body, not the angle (spec §5): the
+        short form must carry the same claims as the long form, which only
+        the body -- not the angle it was written from -- actually contains.
+        No call is made for an empty long body: there is nothing to condense.
+        """
+        if not long_body:
+            return None
+        user_content = (
+            f"Long-form article to condense:\n\n{long_body}\n\n"
+            f"Voice profile:\n{_profile_summary(profile)}"
+        )
+        return self._create(
+            system=_SHORT_SYSTEM, user_content=user_content, max_tokens=MAX_TOKENS_SHORT
         )
