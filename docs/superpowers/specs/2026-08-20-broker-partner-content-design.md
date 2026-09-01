@@ -1,6 +1,8 @@
 # Broker Partner Content Engine — Design Spec
 
-**Status:** v0.5 draft. Changes from v0.4: newsletter recognised as a publishing channel in its own right — qualification now passes on editorial **or** newsletter (§4, §5 Stage 2); every draft is produced in long and short formats, the short one built for the broker's email newsletter (§5 Stage 4); uniqueness comparison scoped within format so an article does not flag as a duplicate of its own summary (§5, §10.3).
+**Status:** v0.6 draft. Changes from v0.5, both decided by Luis on 2026-09-01: three draft formats instead of two — long is now a 2000–2300 word **pillar** article where voice matching is encouraged rather than binding, medium is the voice-matched regular post, short stays the newsletter form (§5 Stage 4, §8). And the backlink question is **settled and closed**: links are welcome if a broker chooses to give one, and are not a goal, not measured, and not designed for. Luis: *"if they do it great and if they don't we also still win."* §1's framing was already built for this; nothing in the design changes.
+
+Changes from v0.4: newsletter recognised as a publishing channel in its own right — qualification now passes on editorial **or** newsletter (§4, §5 Stage 2); every draft is produced in long and short formats, the short one built for the broker's email newsletter (§5 Stage 4); uniqueness comparison scoped within format so an article does not flag as a duplicate of its own summary (§5, §10.3).
 
 Changes from v0.3: originality split into three distinct checks with a corpus-wide uniqueness gate (§10.3); marketing asset library added as a deferred, interface-first dependency (§7, §11.3); Supabase evaluated and deferred with an explicit adoption trigger (§7).
 
@@ -96,12 +98,17 @@ Semrush (pending org approval) improves recall but is not a dependency.
 
 **Stage 4 — Angle + Draft.** Generate candidate angles scored against that broker's audience, then draft the highest-scoring angle in their register. The draft then passes the three originality gates (§10.3) before it may enter the review queue.
 
-Every draft is produced in **two formats from one angle**:
+Every draft is produced in **three formats from one angle**:
 
 | Format | Target | Shape |
 |---|---|---|
-| **Long** | The broker's blog/journal | Full article, matched to their typical word count from the voice profile |
-| **Short** | The broker's email newsletter | Compressed version — headline, 100–200 words, and a link back to the long form where one will exist |
+| **Long** (pillar) | The broker's blog, as a cornerstone piece | **2000–2300 words.** A pillar article — comprehensive coverage of the topic. Voice matching is *encouraged but not binding*: at this length the piece serves depth first, and no broker's `typical_word_count` will be near it. |
+| **Medium** | The broker's blog, as a regular post | **Matched to their `typical_word_count`** from the voice profile. This is the one that has to read like them — it sits alongside their own posts. |
+| **Short** | The broker's email newsletter | Compressed — headline, 100–200 words, and a link back to the long or medium form where one will exist. Voice-matched. |
+
+**Why long is the exception.** Voice matching and pillar length collide: a broker whose posts run 477 words will not publish a 2,200-word piece that reads nothing like their blog. So the long form is a *different product*, not a longer version of the same one — comprehensive by design, with the broker's register applied as far as it reasonably goes. Medium is the format that must genuinely pass as theirs.
+
+**Medium and short are condensations of the long form**, not independent generations (same angle, same claims). Short may be condensed from medium where that reads better.
 
 The short form is a condensation of the long form, not a separate piece: same angle, same claims, same voice. A broker with only a newsletter receives the short form as the primary deliverable, with the long form offered for their site if they want it.
 
@@ -114,6 +121,129 @@ The short form is a condensation of the long form, not a separate piece: same an
 **Stage 6 — Outreach.** Produces a personalized, relationship-agnostic message plus the draft, for a human to send. The system does not send email.
 
 **Stage 7 — Measure.** UTM-tagged links, referral traffic by broker, engagement, inquiries attributed to broker referral.
+
+## 5b. Keyword targeting (Semrush)
+
+Every draft is built around keywords the broker can realistically **win**, and both the operator and the
+broker can see exactly which ones and why.
+
+### Qualifying thresholds
+
+A keyword may be baked into a draft only if:
+
+- **Keyword difficulty < 30**, and
+- **Average monthly search volume > 100**
+
+Measured against real Semrush data for this niche, the thresholds are **selective but not scarce**. Some
+obvious head terms do fail on difficulty — `sailing catamaran` (3,600, KD 41), `luxury yacht charter`
+(8,100, KD 60), `yacht broker` (5,400, KD 78) — and a broker without Sunreef's domain authority would never
+rank for them, so an article aimed there is an article wasted.
+
+But the catamaran niche is **less contested than the surrounding luxury-yacht space**, and semantic
+expansion surfaces high-volume terms that comfortably qualify: `catamaran for sale` (8,100, KD 25),
+`catamarans for sale` (4,400, KD 24), `power catamaran for sale` (2,400, KD 17), `what is a catamaran`
+(1,900, KD 25), `difference between a yacht and a sailboat` (2,400, KD 6). This is the strategic finding
+behind the whole programme: **there is real, winnable search volume in catamarans specifically**, which is
+exactly the category Sunreef occupies.
+
+Both thresholds are **named constants, not literals**, and both are displayed in the UI so a broker
+understands the standard their content is held to rather than taking it on faith.
+
+### Editorial intent only
+
+Decided 2026-09-01. The content this engine produces is **editorial, not commercial**. A keyword is
+eligible only if its Semrush intent includes `Informational` and includes neither `Transactional` nor
+`Navigational`.
+
+- `Transactional` means the searcher wants to buy now. That is a product page, not an article, and an
+  article aimed there reads as a sales sheet — which is precisely the thing a broker will not publish
+  under their own masthead.
+- `Navigational` means the searcher wants one specific brand or site. There is nothing editorial to write.
+- **`Commercial` is retained.** Commercial-investigation intent is comparison and consideration content —
+  `power catamaran vs sailing catamaran` (KD 2), `sailing monohull vs. catamaran` (KD 3), `catamaran cost`
+  — which is the most editorial material in the entire bank. Excluding it would cost ~4,280 monthly
+  searches for no benefit.
+
+Measured against the operator's 243-keyword export, this rule is **nearly free**: of the 153 keywords that
+survive the relevance gate, it removes exactly **one** — `solar powered catamaran` (480, KD 21). Its
+near-synonyms `solar catamaran` (480, KD 23) and `electric catamaran` (390, KD 20) are pure-informational
+and survive, so the Sunreef Eco cluster stays intact.
+
+That the rule costs one keyword is the evidence that it is the right rule, not an argument that it does not
+matter: transactional intent and off-target subject matter turned out to be almost the same set. Eleven of
+the twelve transactional keywords in the export were already excluded as off-segment — rugs, inflatables,
+tourist day-trips.
+
+### Competitor brand terms
+
+Semantic expansion surfaces competitor brand names that pass both filters — `lagoon catamaran` (2,400,
+KD 26), `leopard catamaran` (1,000, KD 13), `aquila boats` (1,900, KD 22). These are Sunreef's direct
+rivals. Ranking a partner broker for them is a defensible comparison play and a genuinely bad idea by
+turns, and it is **not a call the engine should make silently**. A named brand-exclusion list gates them;
+anything on it requires an explicit human decision before it can be baked into a draft.
+
+### Keywords per format
+
+Keyword load scales with length — roughly **one keyword per 500 words**. Four keywords in a 150-word
+newsletter blurb is keyword stuffing, and it reads like it.
+
+| Format | Primary | Secondary |
+|---|---|---|
+| **Long** (2000–2300 words) | 1 | up to 4 |
+| **Medium** (their typical length) | 1 | up to 2 |
+| **Short** (100–200 words) | 1 | 0 |
+
+Because medium and short are condensations of the long draft (§5 Stage 4), their keywords are a **subset**
+of the long draft's. A keyword appearing in the short version but not the long one would mean the
+condensation introduced a claim the pillar never made.
+
+### Provenance and staleness
+
+Keyword metrics are a **snapshot, not a live reading**. `power catamaran` at KD 28 today can be KD 32 next
+quarter, which would place a published article on the wrong side of the threshold retroactively. So every
+keyword stores `measured_at` and the `database` it was measured against, and every UI surface shows the
+measurement date beside the figure. The system never presents a cached number as though it were current.
+
+`database` defaults to `us`. Volume differs substantially by region, so this is a real knob for
+EU- and Caribbean-facing brokers, not a formality.
+
+### Where the data comes from
+
+The engine reads keywords from the `keyword` table. **How that table is filled is pluggable**, which
+matters because of a constraint worth stating plainly: the Semrush connection available today is an **MCP
+server bound to an interactive Claude session** — the headless `bce` pipeline cannot call it. Live
+autonomous lookups would require Semrush's Standard API and its own key and entitlement, which is a
+separate commercial question.
+
+So the seam at `AngleClient(keyword_source=...)` is filled in two stages:
+
+1. **Now — an operator-curated bank.** The operator does their own Semrush research and exports a CSV,
+   which is imported into the `keyword` table (`bce keywords import`). This works today with no new
+   entitlement, and it is *better* than an automated lookup rather than a fallback from one: which keywords
+   are commercially worth chasing is a judgement about the business, not a metric. Keyword economics in a
+   niche this narrow also move on a quarterly timescale, so a curated bank refreshed occasionally loses
+   nothing to a live call, and costs nothing per draft.
+2. **Later — live.** A `SemrushClient` implementing the same interface, if and when API access exists.
+
+Nothing downstream knows which one it is talking to.
+
+**The import is a real ingestion problem, not a file read.** Semrush emits different headers per tool,
+comma *and* semicolon delimiters, Excel BOMs, thousands separators, and blank or `n/a` metrics. The
+importer tolerates all of it, and any row it cannot parse is **skipped and reported, never guessed** —
+silently dropping a keyword the operator deliberately chose is the worst available failure.
+
+**The operator exports their whole considered list, not a pre-filtered one.** Everything parsable is
+imported and `qualifies` is recorded per keyword; only qualifying keywords are eligible for automatic
+selection. The import then reports the split — how many qualified, how many missed which threshold. That
+report is the substance of the feature: it tells the operator what their research actually yielded, and
+where the data disagrees with their instinct.
+
+### When nothing qualifies
+
+If no banked keyword clears both thresholds for an angle, the system **does not relax the thresholds and
+does not invent a keyword**. The draft is still written, the keyword box says plainly that no qualifying
+keyword was found, and the operator sees it at review. Silently lowering the bar would make the box a
+decoration — the number is only worth showing if it is allowed to say no.
 
 ## 6. Volume ceiling
 
@@ -176,6 +306,11 @@ voice_profile(broker_id, register, avg_sentence_len, typical_word_count,
 angle(id, broker_id, title, premise, audience_value, sunreef_relevance,
       score, rejected_reason)
 
+keyword(id, phrase, volume, difficulty, intent, database, measured_at,
+        qualifies, source)
+
+draft_keyword(draft_id, keyword_id, role)
+
 draft(id, angle_id, format, body_md, word_count, sunreef_mentions,
       passes_editorial_value_test, passes_uniqueness, max_similarity,
       most_similar_draft_id, passes_originality, embedding,
@@ -190,9 +325,11 @@ outcome(draft_id, sent_at, response, published_url, utm_campaign,
 `broker.source` ∈ `discovered | manual`.
 `broker.sunreef_affinity` ∈ `none | mentions | lists_inventory | unknown` — ordering only (§4).
 `broker.has_editorial` and `broker.has_newsletter` are independent booleans; qualification requires at least one (§4).
-`draft.format` ∈ `long | short` — see §5 Stage 4. Uniqueness comparison is scoped within format.
+`draft.format` ∈ `long | medium | short` — see §5 Stage 4. Uniqueness comparison is scoped **within format**, so three buckets: a pillar piece is never compared against a newsletter blurb, and an article never flags as a duplicate of its own summary.
 `draft.status` ∈ `pending_review | approved | rejected | sent | published | declined`.
 Nothing reaches `sent` without a human in `reviewed_by`.
+`keyword.qualifies` is **stored, not computed at read time** — it records whether the keyword met the §5b thresholds *at `measured_at`*, so a draft can always explain why a keyword was chosen even after the metrics drift.
+`draft_keyword.role` ∈ `primary | secondary`. Exactly one `primary` per draft.
 
 ## 9. Operator UI
 
@@ -211,10 +348,49 @@ A review gate with no surface to operate it is a gate nobody walks through. This
 | **Outreach** | Approved drafts with copy-ready message. Mark as sent |
 | **Outcomes** | Published URLs, UTM campaign, referral sessions, inquiries |
 
+**Keyword panel.** Every draft shown to the operator carries a keyword box: the primary and secondary
+keywords baked in, each with its difficulty, average monthly volume, and measurement date (§5b). The
+operator sees this at review so a weak keyword can be caught *before* the draft reaches a broker. The same
+component renders in the broker portal (§9b) against the same data — it is written once, and the broker
+sees exactly what we saw.
+
 **Constraints:**
 - Localhost only, no auth in v1 — single operator on one machine. Auth is required before this is exposed to anyone else.
 - No destructive actions without confirmation. Rejecting a draft archives it; nothing is hard-deleted.
 - Every state change writes `reviewed_by` and a timestamp. The audit trail is the point.
+
+## 9b. Broker-facing portal (committed, not yet designed)
+
+Decided 2026-09-01. **Everything in §9 is the admin side — ours.** A second surface follows: a portal
+where each broker signs in and collects the content produced for them, refreshed weekly.
+
+This is a different system from §9, not an extension of it, and the differences are the hard part:
+
+| §9 admin UI (built) | §9b broker portal (not built) |
+|---|---|
+| Localhost, no auth | Public host, real authentication |
+| One operator, sees everything | Multi-tenant — **broker A must never see broker B's content** |
+| SQLite file | Hosted database |
+| No secrets | Password hashing, sessions, reset flows |
+| Read-only reviewing | Broker-facing delivery |
+
+**This fires the Supabase adoption trigger** recorded in §7 — "a second human in the system." Row-level
+security is the reason: the worst failure this system can have is one broker seeing another's drafts,
+and that is a database-level guarantee, not something to hand-roll in application code.
+
+**Consequences that land before the portal is built:**
+
+- **§7's `AssetProvider` stops being optional.** A portal implies each broker collects a recommended
+  image alongside the copy. That is the Dropbox library the creative team is building.
+- **§10.7 usage rights become an exposure, not a note.** Self-serve download by a third party is a
+  different act from a human emailing an image with context. Settle the rights language with creative
+  before any asset reaches the portal.
+- **Weekly cadence implies scheduling** — something must decide what each broker gets each week, and
+  the §11.5 spend ceiling was written for manual operator runs, not a recurring job.
+- **Nothing built so far is wasted.** The engine, the shortlist, the profiles and the admin UI all
+  stand. The portal reads the same data through a different door.
+
+Not designed here. Recorded so the admin/broker split is deliberate rather than discovered late.
 
 ## 10. Compliance and ethics constraints
 

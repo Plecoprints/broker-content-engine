@@ -3,7 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from bce import db, discover, drafting, profile, qualify, seed
+from bce import db, discover, drafting, keywords, profile, qualify, seed
 from bce.angles import AngleClient
 from bce.draft import DraftClient
 from bce.fetch import Fetcher
@@ -12,10 +12,17 @@ from bce.llm import ProfileClient
 MAX_BROKERS = 50
 DEFAULT_QUALIFY_LIMIT = 20
 MAX_PROFILE_CALLS = 20
-#: Each broker drafted costs three Claude calls (angles, long, short) — see
-#: `drafting.draft_for_broker`. The ceiling below counts brokers, not calls,
-#: which is why the refusal message spells that out (spec §11.5).
-MAX_DRAFT_CALLS = 10
+#: Each broker drafted costs four Claude calls (angles, long, medium, short —
+#: spec v0.6 §5 added the medium format) — see `drafting.draft_for_broker`.
+#: The ceiling below counts brokers, not calls, which is why the refusal
+#: message spells that out (spec §11.5).
+#:
+#: Kept at roughly the same total-call budget as before rather than silently
+#: tripling it alongside the third format: the previous ceiling of 10 brokers
+#: at 3 calls/broker was a 30-call session budget. At 4 calls/broker that same
+#: budget is 30 // 4 = 7 brokers, so the ceiling actually drops with the
+#: fourth call rather than merely growing more slowly.
+MAX_DRAFT_CALLS = 7
 
 
 def cmd_init(db_path: str) -> int:
@@ -60,6 +67,55 @@ def cmd_import(db_path: str, csv_path: str) -> int:
         )
         return 1
     print(f"imported {discover.import_csv(conn, text)} brokers")
+    return 0
+
+
+def cmd_keywords(db_path: str, csv_path: str) -> int:
+    """Load a Semrush keyword export into the `keyword` table (spec §5b).
+
+    Mirrors `cmd_import`'s error handling: a missing file or an unusable
+    header is reported and refused (rc=1), not a silent zero-row import. On
+    success, prints the qualify/non-qualify split and the threshold each
+    failure missed -- "that report is the feature" (spec change brief) -- and
+    every skipped, unparseable row and why, never silently dropped.
+    """
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    try:
+        result = keywords.load_bank(conn, csv_path)
+    except FileNotFoundError:
+        print(f"error: CSV file not found: {csv_path}")
+        return 1
+    except keywords.NoPhraseColumnError as exc:
+        print(f"error: {exc}")
+        return 1
+
+    split = f"{result.qualifying} qualify, {result.non_qualifying} do not"
+    if result.non_qualifying:
+        split += (
+            f" ({result.missed_difficulty} missed on difficulty, "
+            f"{result.missed_volume} missed on volume)"
+        )
+    print(f"loaded {result.imported} keywords from {csv_path} ({split})")
+
+    print(
+        f"segment relevance: {result.segment_relevant} relevant, "
+        f"{result.segment_excluded} excluded"
+    )
+    for reason, count in sorted(result.excluded_by_reason.items()):
+        volume = result.excluded_volume_by_reason.get(reason, 0)
+        print(f"  excluded ({reason}): {count} keyword(s), {volume} monthly volume")
+
+    print(
+        f"editorial intent: {result.editorial} editorial, "
+        f"{result.non_editorial} not editorial (commercial retained; "
+        f"transactional/navigational/unknown excluded)"
+    )
+
+    for reason in result.skipped:
+        print(f"warning: skipped {reason}")
+    if result.skipped:
+        print(f"skipped {len(result.skipped)} unparseable row(s) — see warnings above")
     return 0
 
 
@@ -199,9 +255,9 @@ def cmd_draft(db_path: str, limit: int = MAX_DRAFT_CALLS) -> int:
     if limit < 1 or limit > MAX_DRAFT_CALLS:
         print(
             f"refused: {limit} is outside the 1-{MAX_DRAFT_CALLS} broker ceiling "
-            f"(spec section 11.5). Each broker drafted costs three API calls "
-            f"(angles, long draft, short draft) -- this ceiling counts brokers, "
-            f"not calls. Raise it deliberately or correct --limit."
+            f"(spec section 11.5). Each broker drafted costs four API calls "
+            f"(angles, long draft, medium draft, short draft) -- this ceiling "
+            f"counts brokers, not calls. Raise it deliberately or correct --limit."
         )
         return 1
     conn = db.connect(db_path)
@@ -219,17 +275,22 @@ def cmd_draft(db_path: str, limit: int = MAX_DRAFT_CALLS) -> int:
 
 
 def _draft_label(result) -> str:
-    """What actually happened, including the short-condensation-failed case.
+    """What actually happened, including partial-condensation-failed cases.
 
-    Mirrors `_profile_label`: a caller must be able to tell "both formats
-    written" from "long draft kept, short condensation failed" rather than
-    both printing an unqualified "drafted".
+    Mirrors `_profile_label`: a caller must be able to tell "all three
+    formats written" from "long draft kept, medium and/or short condensation
+    failed" rather than both printing an unqualified "drafted".
     """
     if not result:
         return "no draft written"
-    if not result.short_written:
-        return "long draft written (short condensation failed)"
-    return "drafted (long + short)"
+    failed = [
+        name
+        for name, ok in (("medium", result.medium_written), ("short", result.short_written))
+        if not ok
+    ]
+    if failed:
+        return f"long draft written ({' and '.join(failed)} condensation failed)"
+    return "drafted (long + medium + short)"
 
 
 def cmd_redraft(db_path: str, domain: str | None = None) -> int:
@@ -275,6 +336,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("init")
     p_import = sub.add_parser("import")
     p_import.add_argument("csv")
+    p_keywords = sub.add_parser("keywords")
+    p_keywords.add_argument("csv")
     p_qualify = sub.add_parser("qualify")
     p_qualify.add_argument("--limit", type=int, default=DEFAULT_QUALIFY_LIMIT)
     p_requalify = sub.add_parser("requalify")
@@ -308,6 +371,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_init(args.db)
     if args.command == "import":
         return cmd_import(args.db, args.csv)
+    if args.command == "keywords":
+        return cmd_keywords(args.db, args.csv)
     if args.command == "qualify":
         return cmd_qualify(args.db, args.limit)
     if args.command == "requalify":

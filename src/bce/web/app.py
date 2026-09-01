@@ -5,11 +5,11 @@ import json
 from pathlib import Path
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from bce import db, discover
+from bce import db, discover, keywords
 from bce.cli import MAX_BROKERS
 
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -42,6 +42,46 @@ def _flash(request: Request) -> dict:
     }
 
 
+def _paragraphs(body: str | None) -> list[str]:
+    """Split markdown-ish prose into paragraphs on blank lines.
+
+    Draft bodies are prose, not real markdown (see `bce.drafting`), so this
+    deliberately does not pull in a markdown renderer -- it only preserves
+    the paragraph breaks the model actually wrote, one `<p>` per blank-line-
+    separated block. `None` degrades to no paragraphs, never a rendered
+    "None".
+    """
+    if not body:
+        return []
+    return [p.strip() for p in body.split("\n\n") if p.strip()]
+
+
+def _keywords_for_draft(conn, draft) -> dict:
+    """The primary/secondary keyword selection actually baked into `draft`
+    (a `sqlite3.Row` or None), read back from `draft_keyword` joined to
+    `keyword` -- the same `{"primary": row_or_None, "secondary": [rows]}`
+    shape `bce.keywords.select_for_draft` returns, so the keyword panel
+    partial (`_keyword_panel.html`) works from one shape regardless of
+    whether it is fed a fresh selection or, as here, a persisted one.
+
+    A draft with no row at all (condensation failed, or no draft yet) has no
+    keywords to show -- returns the same empty shape `select_for_draft`
+    returns when nothing qualified, so the panel's "no keyword" branch reads
+    identically either way.
+    """
+    if draft is None:
+        return {"primary": None, "secondary": []}
+    rows = conn.execute(
+        "SELECT k.*, dk.role FROM draft_keyword dk "
+        "JOIN keyword k ON k.id = dk.keyword_id "
+        "WHERE dk.draft_id=?",
+        (draft["id"],),
+    ).fetchall()
+    primary = next((dict(r) for r in rows if r["role"] == "primary"), None)
+    secondary = [dict(r) for r in rows if r["role"] == "secondary"]
+    return {"primary": primary, "secondary": secondary}
+
+
 def _broker_count(conn) -> int:
     return conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"]
 
@@ -54,6 +94,7 @@ def create_app(db_path: str) -> FastAPI:
     app = FastAPI(title="Broker Content Engine")
     app.state.db_path = db_path
     _TEMPLATES.env.filters["fromjson"] = lambda v: _loads(v, None)
+    _TEMPLATES.env.filters["paragraphs"] = _paragraphs
 
     @app.get("/", response_class=HTMLResponse)
     def shortlist(request: Request):
@@ -62,7 +103,63 @@ def create_app(db_path: str) -> FastAPI:
         brokers = discover.list_brokers(conn)
         return _TEMPLATES.TemplateResponse(
             request=request, name="shortlist.html",
-            context={"brokers": brokers, **_flash(request)},
+            context={
+                "brokers": brokers,
+                "broker_ids_with_drafts": discover.broker_ids_with_drafts(conn),
+                **_flash(request),
+            },
+        )
+
+    @app.get("/broker/{broker_id}/drafts", response_class=HTMLResponse)
+    def broker_drafts(request: Request, broker_id: int):
+        conn = db.connect(app.state.db_path)
+        db.init_schema(conn)
+        broker = conn.execute(
+            "SELECT * FROM broker WHERE id=?", (broker_id,)
+        ).fetchone()
+        if broker is None:
+            raise HTTPException(status_code=404, detail="broker not found")
+
+        # Only the chosen angle is ever persisted (spec §5 Stage 4) -- take
+        # the most recent in case a broker was ever redrafted more than once.
+        angle = conn.execute(
+            "SELECT * FROM angle WHERE broker_id=? ORDER BY id DESC LIMIT 1",
+            (broker_id,),
+        ).fetchone()
+
+        long_draft = medium_draft = short_draft = None
+        if angle is not None:
+            long_draft = conn.execute(
+                "SELECT * FROM draft WHERE angle_id=? AND format='long' "
+                "ORDER BY id DESC LIMIT 1",
+                (angle["id"],),
+            ).fetchone()
+            medium_draft = conn.execute(
+                "SELECT * FROM draft WHERE angle_id=? AND format='medium' "
+                "ORDER BY id DESC LIMIT 1",
+                (angle["id"],),
+            ).fetchone()
+            short_draft = conn.execute(
+                "SELECT * FROM draft WHERE angle_id=? AND format='short' "
+                "ORDER BY id DESC LIMIT 1",
+                (angle["id"],),
+            ).fetchone()
+
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="draft_viewer.html",
+            context={
+                "broker": broker,
+                "angle": angle,
+                "long_draft": long_draft,
+                "medium_draft": medium_draft,
+                "short_draft": short_draft,
+                "long_keywords": _keywords_for_draft(conn, long_draft),
+                "medium_keywords": _keywords_for_draft(conn, medium_draft),
+                "short_keywords": _keywords_for_draft(conn, short_draft),
+                "max_difficulty": keywords.MAX_DIFFICULTY,
+                "min_volume": keywords.MIN_VOLUME,
+                **_flash(request),
+            },
         )
 
     @app.get("/add", response_class=HTMLResponse)

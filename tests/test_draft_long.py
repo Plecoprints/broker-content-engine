@@ -2,7 +2,7 @@ import json
 
 import anthropic
 import pytest
-from bce.draft import MODEL, DraftClient
+from bce.draft import LONG_MAX_WORDS, LONG_MIN_WORDS, MAX_TOKENS_LONG, MODEL, DraftClient
 
 ANGLE = {
     "title": "Provisioning for a Two-Week Mediterranean Crossing",
@@ -64,11 +64,46 @@ def test_write_long_uses_opus_and_no_deprecated_params():
     assert "budget_tokens" not in json.dumps(sent.get("thinking", {}))
 
 
-def test_write_long_carries_the_brokers_typical_word_count():
+def test_long_is_now_the_pillar_length_2000_to_2300_words():
+    """Spec v0.6 §5: long moved from "match typical_word_count" to a fixed
+    2000-2300 word pillar target -- that word-count target moved to
+    write_medium (see test_draft_medium.py)."""
+    assert LONG_MIN_WORDS == 2000
+    assert LONG_MAX_WORDS == 2300
+
+
+def test_write_long_carries_the_pillar_length_target_not_typical_word_count():
+    """The semantics shift, asserted directly: write_long's target is now the
+    fixed pillar range, not this broker's own typical_word_count (850 in
+    PROFILE) -- that number belongs to write_medium now, not write_long.
+    """
     fake = FakeClient(text="Body.")
     DraftClient(client=fake).write_long(ANGLE, PROFILE, "Acme Yachts")
     sent_text = fake.messages.calls[0]["messages"][0]["content"]
-    assert "850" in sent_text
+    assert str(LONG_MIN_WORDS) in sent_text
+    assert str(LONG_MAX_WORDS) in sent_text
+    assert "850" not in sent_text
+
+
+def test_write_long_prompt_says_voice_matching_is_encouraged_not_binding():
+    """Spec v0.6 §5: "Voice matching is encouraged but not binding" at pillar
+    length -- no broker's typical_word_count is anywhere near 2000-2300 words,
+    so the system prompt must say this is different from the strict voice
+    match write_medium performs.
+    """
+    fake = FakeClient(text="Body.")
+    DraftClient(client=fake).write_long(ANGLE, PROFILE, "Acme Yachts")
+    system = fake.messages.calls[0]["system"].lower()
+    assert "encourag" in system
+    assert "not binding" in system or "not required" in system
+
+
+def test_max_tokens_long_is_sized_for_the_pillar_target():
+    """~1.5 tokens/word * 2300 words is already ~3450 tokens; MAX_TOKENS_LONG
+    must clear that with real headroom for structure/headline overhead, not
+    just barely exceed the raw word-count arithmetic.
+    """
+    assert MAX_TOKENS_LONG >= 5000
 
 
 def test_write_long_carries_the_angle_and_broker_name():

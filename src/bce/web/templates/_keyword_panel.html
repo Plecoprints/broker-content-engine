@@ -1,0 +1,102 @@
+{#
+  Keyword panel (spec §5b, §9 "Keyword panel"): primary and secondary
+  keywords baked into one draft, each with difficulty, monthly volume, and
+  measurement date, plus the active thresholds so the standard is visible
+  rather than taken on faith.
+
+  A single reusable macro, not inlined into the draft viewer -- spec §9b
+  reuses this exact component verbatim in the broker portal against the same
+  data ("it is written once, and the broker sees exactly what we saw"), so
+  anything specific to the operator view (the review queue, editing) must
+  never leak in here.
+
+  Call as: {{ keyword_panel(selection, max_difficulty, min_volume) }}
+  where `selection` is the shape `bce.keywords.select_for_draft` (or the
+  equivalent draft_keyword/keyword join) returns:
+  {"primary": row_or_None, "secondary": [rows]}. Degrades honestly when
+  there is nothing to show -- never a literal "None", never a silently empty
+  box (see web/app.py's `_keywords_for_draft`, and test_web_drafts_keywords.py's
+  guard against literal "None" leaking).
+#}
+{% macro keyword_panel(selection, max_difficulty, min_volume) %}
+  <div class="keyword-panel">
+    <h3>Keywords</h3>
+    <p class="muted">
+      Standard: difficulty &lt; {{ max_difficulty }}, monthly volume &gt; {{ min_volume }}.
+    </p>
+    {% if selection and selection["primary"] %}
+      <table>
+        <caption class="muted">Baked into this draft</caption>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Keyword</th>
+            <th>Difficulty</th>
+            <th>Monthly volume</th>
+            <th>Measured</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="pill pill-qualified">primary</span></td>
+            <td>{{ selection["primary"]["phrase"] }}</td>
+            <td>
+              {% if selection["primary"]["difficulty"] is not none %}
+                {{ selection["primary"]["difficulty"] }}
+              {% else %}
+                <span class="muted">unknown</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if selection["primary"]["volume"] is not none %}
+                {{ selection["primary"]["volume"] }}
+              {% else %}
+                <span class="muted">unknown</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if selection["primary"]["measured_at"] %}
+                {{ selection["primary"]["measured_at"] }}
+              {% else %}
+                <span class="muted">unknown</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% for kw in selection["secondary"] %}
+            <tr>
+              <td><span class="pill pill-pending">secondary</span></td>
+              <td>{{ kw["phrase"] }}</td>
+              <td>
+                {% if kw["difficulty"] is not none %}
+                  {{ kw["difficulty"] }}
+                {% else %}
+                  <span class="muted">unknown</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if kw["volume"] is not none %}
+                  {{ kw["volume"] }}
+                {% else %}
+                  <span class="muted">unknown</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if kw["measured_at"] %}
+                  {{ kw["measured_at"] }}
+                {% else %}
+                  <span class="muted">unknown</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <p>No keyword met the standard above for this draft, so none was
+        baked in. The draft was still written &mdash; we don&rsquo;t lower the
+        bar to fill the box.</p>
+      </div>
+    {% endif %}
+  </div>
+{% endmacro %}
