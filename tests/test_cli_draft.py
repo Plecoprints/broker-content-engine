@@ -251,6 +251,16 @@ def test_main_routes_redraft(tmp_path):
 # --- cli.cmd_draft: ceiling ---------------------------------------------------
 
 
+def test_max_draft_calls_lowered_for_the_fourth_call_per_broker():
+    """Spec v0.6 §5/§11.5: each broker drafted now costs four Claude calls
+    (angles, long, medium, short) instead of three. The session call budget
+    (the old MAX_DRAFT_CALLS=10 brokers * 3 calls/broker = 30 calls) is kept
+    roughly constant rather than silently tripled -- 30 // 4 = 7 brokers, so
+    the ceiling actually drops with a fourth call, not just "grows more slowly".
+    """
+    assert cli.MAX_DRAFT_CALLS == 7
+
+
 def test_draft_refuses_a_limit_over_the_ceiling(tmp_path, capsys):
     path = _db(tmp_path)
     rc = cli.cmd_draft(path, limit=cli.MAX_DRAFT_CALLS + 1)
@@ -284,11 +294,15 @@ def test_draft_refuses_a_zero_limit(tmp_path, capsys):
     assert "ceiling" in capsys.readouterr().out.lower()
 
 
-def test_draft_ceiling_refusal_explains_three_calls_per_broker(tmp_path, capsys):
+def test_draft_ceiling_refusal_explains_four_calls_per_broker(tmp_path, capsys):
+    """Spec v0.6 §5: a third draft format (medium) means a fourth Claude call
+    per broker -- angles, long, medium, short -- so the refusal message must
+    say "four", not the old "three".
+    """
     path = _db(tmp_path)
     cli.cmd_draft(path, limit=cli.MAX_DRAFT_CALLS + 1)
     out = capsys.readouterr().out.lower()
-    assert "three" in out
+    assert "four" in out
     assert "call" in out
 
 
@@ -329,6 +343,9 @@ class _FakeDraftClient:
     def write_long(self, angle, profile, broker_name):
         return "Long body."
 
+    def write_medium(self, long_body, profile, broker_name):
+        return "Medium body."
+
     def write_short(self, long_body, profile):
         return "Short body."
 
@@ -351,7 +368,7 @@ def test_draft_drives_undrafted_brokers_and_prints_a_line_per_broker(
 
     conn = db.connect(path)
     drafts = conn.execute("SELECT format, status FROM draft").fetchall()
-    assert {d["format"] for d in drafts} == {"long", "short"}
+    assert {d["format"] for d in drafts} == {"long", "medium", "short"}
     assert all(d["status"] == "pending_review" for d in drafts)
 
 

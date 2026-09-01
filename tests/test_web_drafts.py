@@ -25,7 +25,10 @@ def _broker_id(tmp_path, domain):
     return row["id"]
 
 
-def test_drafts_page_renders_for_broker_with_both_drafts(tmp_path):
+def test_drafts_page_renders_for_broker_with_all_three_drafts(tmp_path):
+    """Spec v0.6 §5: three formats, not two -- meridian-yacht.invalid is the
+    fully-profiled broker seeded with long, medium, and short (test_seed.py).
+    """
     client = _client(tmp_path)
     broker_id = _broker_id(tmp_path, "meridian-yacht.invalid")
     r = client.get(f"/broker/{broker_id}/drafts")
@@ -38,6 +41,9 @@ def test_drafts_page_renders_for_broker_with_both_drafts(tmp_path):
     # The long draft body and its word count.
     assert "bluewater passage" in body
     assert "477" in body
+    # The medium draft body and its word count.
+    assert "delivery skipper earns their fee twice over" in body
+    assert "603" in body
     # The short draft body and its word count.
     assert "checklist, not a brochure" in body
     assert "145" in body
@@ -52,7 +58,9 @@ def test_drafts_page_shows_degraded_broker_short_failed_state(tmp_path):
     assert "Anchor Bay Yachts" in body
     # The long draft is present.
     assert "haul-out" in body
-    # The short draft is honestly reported as missing, not a blank panel.
+    # anchorbay has neither a medium nor a short draft seeded; both must
+    # degrade honestly, not render as blank panels.
+    assert "medium" in body.lower() and "failed" in body.lower()
     assert "short condensation failed" in body.lower()
 
 

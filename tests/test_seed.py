@@ -55,7 +55,11 @@ def test_seed_is_idempotent():
     assert len(discover.list_brokers(conn)) == first
 
 
-def test_seed_gives_the_fully_profiled_broker_an_angle_and_both_drafts():
+def test_seed_gives_the_fully_profiled_broker_an_angle_and_all_three_drafts():
+    """Spec v0.6 §5: three formats, not two -- the fully-profiled broker
+    (meridian-yacht.invalid) gets long, medium, and short so the draft viewer
+    shows all three panels with no API spend.
+    """
     conn = _conn()
     seed.seed_example(conn)
     broker = conn.execute(
@@ -75,13 +79,54 @@ def test_seed_gives_the_fully_profiled_broker_an_angle_and_both_drafts():
         "SELECT * FROM draft WHERE angle_id=?", (angle["id"],)
     ).fetchall()
     formats = {d["format"] for d in drafts}
-    assert formats == {"long", "short"}
+    assert formats == {"long", "medium", "short"}
     for d in drafts:
         assert d["status"] == "pending_review"
         assert d["word_count"] == len(d["body_md"].split())
         # Realistic prose, not filler.
         assert "lorem" not in d["body_md"].lower()
         assert len(d["body_md"].split()) > 50
+
+
+def test_seed_medium_draft_is_roughly_the_brokers_typical_word_count():
+    """The medium draft's whole point is standing in for a real
+    write_medium output: real prose in the broker's register, in the
+    neighbourhood of their typical_word_count (620 for meridian-yacht),
+    condensed from the seeded long draft -- not filler and not copy-pasted
+    from the long or short bodies.
+    """
+    conn = _conn()
+    seed.seed_example(conn)
+    broker = conn.execute(
+        "SELECT id FROM broker WHERE domain='meridian-yacht.invalid'"
+    ).fetchone()
+    profile = conn.execute(
+        "SELECT typical_word_count FROM voice_profile WHERE broker_id=?",
+        (broker["id"],),
+    ).fetchone()
+    angle = conn.execute(
+        "SELECT id FROM angle WHERE broker_id=?", (broker["id"],)
+    ).fetchone()
+    medium = conn.execute(
+        "SELECT * FROM draft WHERE angle_id=? AND format='medium'", (angle["id"],)
+    ).fetchone()
+    long_draft = conn.execute(
+        "SELECT * FROM draft WHERE angle_id=? AND format='long'", (angle["id"],)
+    ).fetchone()
+    short_draft = conn.execute(
+        "SELECT * FROM draft WHERE angle_id=? AND format='short'", (angle["id"],)
+    ).fetchone()
+
+    assert medium is not None
+    word_count = len(medium["body_md"].split())
+    target = profile["typical_word_count"]
+    assert abs(word_count - target) / target < 0.25  # "roughly"
+    assert medium["body_md"] != long_draft["body_md"]
+    assert medium["body_md"] != short_draft["body_md"]
+    # Carries the same claim as the long/short bodies (condensed from the
+    # same angle, spec §5), not a disconnected piece of writing.
+    assert "bluewater" in medium["body_md"].lower()
+    assert "sunreef" in medium["body_md"].lower()
 
 
 def test_seed_gives_one_broker_a_long_draft_but_no_short_draft():

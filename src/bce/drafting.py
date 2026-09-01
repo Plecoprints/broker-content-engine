@@ -1,16 +1,16 @@
-"""Stage 4/5 orchestrator — angles to persisted dual-format drafts (spec §5).
+"""Stage 4/5 orchestrator — angles to persisted three-format drafts (spec §5).
 
 `voice_profile` stores four columns as JSON *strings*
 (`structure_pattern`, `vocabulary_markers`, `themes`, `sample_quotes`) --
 see `profile.profile_broker`, which is what writes them that way. Both
 `angles.AngleClient.propose` and `draft.DraftClient.write_long` /
-`write_short` expect the *parsed* shape: a dict for `structure_pattern`,
-lists for the other three. Nothing upstream of this module deserializes
-them, so `_load_profile` below is the one place that does -- passing a raw
-`sqlite3.Row` through would not raise (the argument types still "match"),
-it would just condition every draft on JSON punctuation instead of the
-broker's actual voice. Mirrors `web.app._loads`: tolerate NULL and
-malformed JSON, never raise while drafting.
+`write_medium` / `write_short` expect the *parsed* shape: a dict for
+`structure_pattern`, lists for the other three. Nothing upstream of this
+module deserializes them, so `_load_profile` below is the one place that
+does -- passing a raw `sqlite3.Row` through would not raise (the argument
+types still "match"), it would just condition every draft on JSON
+punctuation instead of the broker's actual voice. Mirrors `web.app._loads`:
+tolerate NULL and malformed JSON, never raise while drafting.
 """
 import json
 import sqlite3
@@ -30,13 +30,16 @@ class DraftResult:
     caught Stage 3 (see `profile.ProfileResult`); mirrored here with an
     explicit `__bool__` instead.
 
-    `written` is true exactly when the long-form draft (and its angle) were
-    persisted. `short_written` lets the caller distinguish "both formats
-    landed" from "the long draft is good but condensation failed" -- the
-    long row is kept either way (see `draft_for_broker`).
+    `written` is true exactly when the long-form (pillar) draft (and its
+    angle) were persisted. `medium_written` / `short_written` let the caller
+    distinguish "all three formats landed" from "the long draft is good but
+    one or both condensations failed" -- the long row is kept regardless, and
+    medium and short are independent: one failing does not discard the other
+    (see `draft_for_broker`).
     """
 
     written: bool
+    medium_written: bool = False
     short_written: bool = False
 
     def __bool__(self) -> bool:
@@ -78,12 +81,13 @@ def _load_profile(row: sqlite3.Row) -> dict:
 def draft_for_broker(
     conn: sqlite3.Connection, broker_id: int, angle_client, draft_client
 ) -> DraftResult:
-    """Propose angles, write both draft formats, and persist them.
+    """Propose angles, write all three draft formats, and persist them.
 
     Loads the voice profile, proposes angles, picks the best one, writes the
-    long-form draft and then condenses it to short-form, and persists one
-    `angle` row plus one or two `draft` rows (`format='long'` always,
-    `format='short'` when condensation succeeded).
+    long-form (pillar) draft, then independently condenses it to medium-form
+    and short-form, and persists one `angle` row plus one to three `draft`
+    rows (`format='long'` always, `format='medium'` / `format='short'` each
+    when its condensation succeeded).
 
     Nothing is written, and no client call is made, when: there is no voice
     profile row; the profile's judgement half never landed (classification
@@ -91,11 +95,17 @@ def draft_for_broker(
     distinction `profile.ProfileResult.classified` makes, applied here so a
     broker with statistics-only "no profile" does not spend an angle call
     against nothing); angle proposal returns none; or the long draft comes
-    back `None` (there is nothing to condense, so `write_short` is never
-    called). A `None` short draft does not discard a good long draft --
-    that row is still written, and `short_written` reports the failure.
+    back `None` (there is nothing to condense, so neither `write_medium` nor
+    `write_short` is ever called -- spec §5: both condense from the long
+    body, not the angle).
 
-    Both draft rows carry `status='pending_review'`; nothing here ever
+    Medium and short are independent condensation attempts once the long
+    draft exists: both `write_medium` and `write_short` are always called,
+    and either one returning `None` does not discard the good long draft or
+    the other successful condensation -- `medium_written` / `short_written`
+    report each failure separately.
+
+    Every draft row carries `status='pending_review'`; nothing here ever
     writes `'sent'` -- the schema requires a human in `reviewed_by` first.
     """
     broker = conn.execute(
@@ -125,6 +135,10 @@ def draft_for_broker(
     if not long_body:
         return DraftResult(written=False)
 
+    # Independent attempts: neither call short-circuits the other, and
+    # either one failing must not stop the other from being written (spec
+    # v0.6 §5's partial-failure semantics, extended from short-only to both).
+    medium_body = draft_client.write_medium(long_body, profile, broker_name)
     short_body = draft_client.write_short(long_body, profile)
 
     cursor = conn.execute(
@@ -147,6 +161,15 @@ def draft_for_broker(
         (angle_id, long_body, len(long_body.split()), "pending_review", "long"),
     )
 
+    medium_written = False
+    if medium_body:
+        conn.execute(
+            "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
+            "VALUES (?,?,?,?,?)",
+            (angle_id, medium_body, len(medium_body.split()), "pending_review", "medium"),
+        )
+        medium_written = True
+
     short_written = False
     if short_body:
         conn.execute(
@@ -157,4 +180,4 @@ def draft_for_broker(
         short_written = True
 
     conn.commit()
-    return DraftResult(written=True, short_written=short_written)
+    return DraftResult(written=True, medium_written=medium_written, short_written=short_written)

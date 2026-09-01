@@ -25,10 +25,13 @@ class FakeAngleClient:
 
 
 class FakeDraftClient:
-    def __init__(self, long_body="Long body.", short_body="Short body."):
+    def __init__(self, long_body="Long body.", medium_body="Medium body.",
+                 short_body="Short body."):
         self.long_body = long_body
+        self.medium_body = medium_body
         self.short_body = short_body
         self.long_calls = []
+        self.medium_calls = []
         self.short_calls = []
 
     def write_long(self, angle, profile, broker_name):
@@ -36,6 +39,12 @@ class FakeDraftClient:
             {"angle": angle, "profile": profile, "broker_name": broker_name}
         )
         return self.long_body
+
+    def write_medium(self, long_body, profile, broker_name):
+        self.medium_calls.append(
+            {"long_body": long_body, "profile": profile, "broker_name": broker_name}
+        )
+        return self.medium_body
 
     def write_short(self, long_body, profile):
         self.short_calls.append({"long_body": long_body, "profile": profile})
@@ -133,6 +142,12 @@ def test_clients_receive_parsed_structures_not_json_strings():
     assert isinstance(long_profile["structure_pattern"], dict)
     assert isinstance(long_profile["vocabulary_markers"], list)
 
+    assert len(draft_client.medium_calls) == 1
+    medium_profile = draft_client.medium_calls[0]["profile"]
+    assert isinstance(medium_profile["themes"], list)
+    assert isinstance(medium_profile["structure_pattern"], dict)
+    assert isinstance(medium_profile["vocabulary_markers"], list)
+
     assert len(draft_client.short_calls) == 1
     short_profile = draft_client.short_calls[0]["profile"]
     assert isinstance(short_profile["themes"], list)
@@ -205,7 +220,12 @@ def test_empty_angles_writes_nothing_and_makes_no_further_calls():
     assert conn.execute("SELECT COUNT(*) AS c FROM angle").fetchone()["c"] == 0
 
 
-def test_none_long_draft_writes_nothing_and_skips_the_short_call():
+def test_none_long_draft_writes_nothing_and_skips_medium_and_short_calls():
+    """Spec v0.6 §5: medium and short both condense from the long body, so if
+    write_long fails there is nothing for either of them to condense --
+    neither call is made, and nothing is written (unchanged from before the
+    three-format change, now covering one more client).
+    """
     conn = _conn()
     bid = _profiled_broker(conn)
     angle_client = FakeAngleClient(angles=[ANGLE])
@@ -215,20 +235,69 @@ def test_none_long_draft_writes_nothing_and_skips_the_short_call():
 
     assert bool(result) is False
     assert len(draft_client.long_calls) == 1
+    assert draft_client.medium_calls == []  # nothing to condense
     assert draft_client.short_calls == []  # nothing to condense
     assert conn.execute("SELECT COUNT(*) AS c FROM angle").fetchone()["c"] == 0
     assert conn.execute("SELECT COUNT(*) AS c FROM draft").fetchone()["c"] == 0
 
 
-def test_none_short_draft_still_keeps_the_good_long_draft():
+def test_none_medium_draft_still_keeps_the_good_long_and_short_drafts():
+    """New in v0.6: medium and short are independent condensation attempts --
+    one failing must not discard the long draft or the other condensation.
+    """
     conn = _conn()
     bid = _profiled_broker(conn)
     angle_client = FakeAngleClient(angles=[ANGLE])
-    draft_client = FakeDraftClient(long_body="A full article body.", short_body=None)
+    draft_client = FakeDraftClient(
+        long_body="A full article body.", medium_body=None, short_body="Short blurb."
+    )
 
     result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
 
     assert bool(result) is True
+    assert result.medium_written is False
+    assert result.short_written is True
+    rows = conn.execute("SELECT * FROM draft ORDER BY format").fetchall()
+    formats = {r["format"] for r in rows}
+    assert formats == {"long", "short"}
+
+
+def test_none_short_draft_still_keeps_the_good_long_and_medium_drafts():
+    conn = _conn()
+    bid = _profiled_broker(conn)
+    angle_client = FakeAngleClient(angles=[ANGLE])
+    draft_client = FakeDraftClient(
+        long_body="A full article body.", medium_body="A regular post.", short_body=None
+    )
+
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+
+    assert bool(result) is True
+    assert result.medium_written is True
+    assert result.short_written is False
+    rows = conn.execute("SELECT * FROM draft").fetchall()
+    formats = {r["format"] for r in rows}
+    assert formats == {"long", "medium"}
+    long_row = next(r for r in rows if r["format"] == "long")
+    assert long_row["body_md"] == "A full article body."
+    assert long_row["status"] == "pending_review"
+
+
+def test_none_medium_and_none_short_still_keeps_the_good_long_draft():
+    """Both condensations can fail independently and simultaneously; the
+    long draft is kept regardless, and both failures are reported.
+    """
+    conn = _conn()
+    bid = _profiled_broker(conn)
+    angle_client = FakeAngleClient(angles=[ANGLE])
+    draft_client = FakeDraftClient(
+        long_body="A full article body.", medium_body=None, short_body=None
+    )
+
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+
+    assert bool(result) is True
+    assert result.medium_written is False
     assert result.short_written is False
     rows = conn.execute("SELECT * FROM draft").fetchall()
     assert len(rows) == 1
@@ -237,15 +306,36 @@ def test_none_short_draft_still_keeps_the_good_long_draft():
     assert rows[0]["status"] == "pending_review"
 
 
-def test_both_drafts_persist_as_two_rows_under_one_angle():
+def test_medium_and_short_are_both_attempted_even_though_short_is_independent():
+    """Neither condensation call short-circuits the other: both write_medium
+    and write_short are always attempted once write_long succeeds.
+    """
     conn = _conn()
     bid = _profiled_broker(conn)
     angle_client = FakeAngleClient(angles=[ANGLE])
-    draft_client = FakeDraftClient(long_body="Long body.", short_body="Short blurb.")
+    draft_client = FakeDraftClient(long_body="Long body.")
+
+    drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+
+    assert len(draft_client.medium_calls) == 1
+    assert len(draft_client.short_calls) == 1
+    # Both condense from the long body, not the angle (spec §5).
+    assert draft_client.medium_calls[0]["long_body"] == "Long body."
+    assert draft_client.short_calls[0]["long_body"] == "Long body."
+
+
+def test_all_three_drafts_persist_as_three_rows_under_one_angle():
+    conn = _conn()
+    bid = _profiled_broker(conn)
+    angle_client = FakeAngleClient(angles=[ANGLE])
+    draft_client = FakeDraftClient(
+        long_body="Long body.", medium_body="Medium post.", short_body="Short blurb."
+    )
 
     result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
 
     assert bool(result) is True
+    assert result.medium_written is True
     assert result.short_written is True
 
     angles = conn.execute("SELECT * FROM angle").fetchall()
@@ -255,9 +345,9 @@ def test_both_drafts_persist_as_two_rows_under_one_angle():
     drafts = conn.execute(
         "SELECT * FROM draft ORDER BY format"
     ).fetchall()
-    assert len(drafts) == 2
+    assert len(drafts) == 3
     formats = {d["format"] for d in drafts}
-    assert formats == {"long", "short"}
+    assert formats == {"long", "medium", "short"}
     for d in drafts:
         assert d["angle_id"] == angles[0]["id"]
         assert d["status"] == "pending_review"
@@ -290,6 +380,12 @@ def test_result_is_a_frozen_dataclass_with_explicit_bool():
     # Truthiness must come from the explicit __bool__, not tuple semantics.
     assert bool(drafting.DraftResult(written=False)) is False
     assert bool(drafting.DraftResult(written=True)) is True
+
+
+def test_draft_result_defaults_medium_and_short_written_to_false():
+    result = drafting.DraftResult(written=True)
+    assert result.medium_written is False
+    assert result.short_written is False
 
 
 def test_picks_the_best_scoring_angle():

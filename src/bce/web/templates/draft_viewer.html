@@ -56,7 +56,7 @@
     </section>
 
     <section class="panel" style="max-width: none;">
-      <h2>Long draft</h2>
+      <h2>Long draft (pillar)</h2>
       {% if long_draft %}
         <p class="muted">
           {% if long_draft["word_count"] is not none %}
@@ -74,7 +74,30 @@
     </section>
 
     <section class="panel" style="max-width: none;">
-      <h2>Short draft</h2>
+      <h2>Medium draft (regular post)</h2>
+      {% if medium_draft %}
+        <p class="muted">
+          {% if medium_draft["word_count"] is not none %}
+            {{ medium_draft["word_count"] }} words
+          {% else %}
+            word count unknown
+          {% endif %}
+        </p>
+        {% for para in medium_draft["body_md"] | paragraphs %}
+          <p>{{ para }}</p>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <p>Medium condensation failed for this draft. The long draft above
+          was written, but condensing it to this broker's own typical
+          article length did not succeed. Run
+          <code>bce redraft {{ broker["domain"] }}</code> to try again.</p>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="panel" style="max-width: none;">
+      <h2>Short draft (newsletter)</h2>
       {% if short_draft %}
         <p class="muted">
           {% if short_draft["word_count"] is not none %}

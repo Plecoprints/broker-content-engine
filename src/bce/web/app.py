@@ -101,10 +101,15 @@ def create_app(db_path: str) -> FastAPI:
             (broker_id,),
         ).fetchone()
 
-        long_draft = short_draft = None
+        long_draft = medium_draft = short_draft = None
         if angle is not None:
             long_draft = conn.execute(
                 "SELECT * FROM draft WHERE angle_id=? AND format='long' "
+                "ORDER BY id DESC LIMIT 1",
+                (angle["id"],),
+            ).fetchone()
+            medium_draft = conn.execute(
+                "SELECT * FROM draft WHERE angle_id=? AND format='medium' "
                 "ORDER BY id DESC LIMIT 1",
                 (angle["id"],),
             ).fetchone()
@@ -120,6 +125,7 @@ def create_app(db_path: str) -> FastAPI:
                 "broker": broker,
                 "angle": angle,
                 "long_draft": long_draft,
+                "medium_draft": medium_draft,
                 "short_draft": short_draft,
                 **_flash(request),
             },

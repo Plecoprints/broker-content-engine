@@ -12,10 +12,17 @@ from bce.llm import ProfileClient
 MAX_BROKERS = 50
 DEFAULT_QUALIFY_LIMIT = 20
 MAX_PROFILE_CALLS = 20
-#: Each broker drafted costs three Claude calls (angles, long, short) — see
-#: `drafting.draft_for_broker`. The ceiling below counts brokers, not calls,
-#: which is why the refusal message spells that out (spec §11.5).
-MAX_DRAFT_CALLS = 10
+#: Each broker drafted costs four Claude calls (angles, long, medium, short —
+#: spec v0.6 §5 added the medium format) — see `drafting.draft_for_broker`.
+#: The ceiling below counts brokers, not calls, which is why the refusal
+#: message spells that out (spec §11.5).
+#:
+#: Kept at roughly the same total-call budget as before rather than silently
+#: tripling it alongside the third format: the previous ceiling of 10 brokers
+#: at 3 calls/broker was a 30-call session budget. At 4 calls/broker that same
+#: budget is 30 // 4 = 7 brokers, so the ceiling actually drops with the
+#: fourth call rather than merely growing more slowly.
+MAX_DRAFT_CALLS = 7
 
 
 def cmd_init(db_path: str) -> int:
@@ -199,9 +206,9 @@ def cmd_draft(db_path: str, limit: int = MAX_DRAFT_CALLS) -> int:
     if limit < 1 or limit > MAX_DRAFT_CALLS:
         print(
             f"refused: {limit} is outside the 1-{MAX_DRAFT_CALLS} broker ceiling "
-            f"(spec section 11.5). Each broker drafted costs three API calls "
-            f"(angles, long draft, short draft) -- this ceiling counts brokers, "
-            f"not calls. Raise it deliberately or correct --limit."
+            f"(spec section 11.5). Each broker drafted costs four API calls "
+            f"(angles, long draft, medium draft, short draft) -- this ceiling "
+            f"counts brokers, not calls. Raise it deliberately or correct --limit."
         )
         return 1
     conn = db.connect(db_path)
@@ -219,17 +226,22 @@ def cmd_draft(db_path: str, limit: int = MAX_DRAFT_CALLS) -> int:
 
 
 def _draft_label(result) -> str:
-    """What actually happened, including the short-condensation-failed case.
+    """What actually happened, including partial-condensation-failed cases.
 
-    Mirrors `_profile_label`: a caller must be able to tell "both formats
-    written" from "long draft kept, short condensation failed" rather than
-    both printing an unqualified "drafted".
+    Mirrors `_profile_label`: a caller must be able to tell "all three
+    formats written" from "long draft kept, medium and/or short condensation
+    failed" rather than both printing an unqualified "drafted".
     """
     if not result:
         return "no draft written"
-    if not result.short_written:
-        return "long draft written (short condensation failed)"
-    return "drafted (long + short)"
+    failed = [
+        name
+        for name, ok in (("medium", result.medium_written), ("short", result.short_written))
+        if not ok
+    ]
+    if failed:
+        return f"long draft written ({' and '.join(failed)} condensation failed)"
+    return "drafted (long + medium + short)"
 
 
 def cmd_redraft(db_path: str, domain: str | None = None) -> int:

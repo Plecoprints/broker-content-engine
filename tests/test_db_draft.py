@@ -65,9 +65,12 @@ def test_init_schema_migrates_an_old_shaped_draft_asset_table():
     assert "draft_asset.usage_rights_confirmed" in added
 
 
-def test_schema_version_bumped_to_2():
-    """SCHEMA_VERSION is incremented to 2."""
-    assert db.SCHEMA_VERSION == 2
+def test_schema_version_bumped_to_3():
+    """SCHEMA_VERSION is incremented to 3 (draft.format CHECK grew a table
+    rebuild, per spec v0.6's three-format change -- SQLite cannot ALTER a
+    CHECK in place, so this is a real shape change, not just an added column).
+    """
+    assert db.SCHEMA_VERSION == 3
 
 
 def test_format_column_is_text():
@@ -92,8 +95,10 @@ def test_format_column_is_text():
     assert row["format"] == "long"
 
 
-def test_format_column_check_constraint_rejects_invalid_values():
-    """format CHECK constraint only allows 'long' or 'short'."""
+def test_format_column_check_constraint_allows_long_medium_short():
+    """format CHECK constraint allows exactly 'long', 'medium', 'short' (spec
+    v0.6 §5/§8: three draft formats, not two).
+    """
     conn = db.connect(":memory:")
     db.init_schema(conn)
 
@@ -105,15 +110,21 @@ def test_format_column_check_constraint_rejects_invalid_values():
         "INSERT INTO angle (broker_id, title) VALUES (1, 'Test Angle')"
     )
 
-    # Valid values should work
+    # All three valid values should work
+    conn.execute(
+        "INSERT INTO draft (angle_id, body_md, format) VALUES (1, 'Test', 'long')"
+    )
+    conn.execute(
+        "INSERT INTO draft (angle_id, body_md, format) VALUES (1, 'Test', 'medium')"
+    )
     conn.execute(
         "INSERT INTO draft (angle_id, body_md, format) VALUES (1, 'Test', 'short')"
     )
 
-    # Invalid value should fail
+    # An invalid value should still fail
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute(
-            "INSERT INTO draft (angle_id, body_md, format) VALUES (1, 'Test2', 'medium')"
+            "INSERT INTO draft (angle_id, body_md, format) VALUES (1, 'Test2', 'huge')"
         )
 
 
@@ -146,3 +157,181 @@ def test_init_schema_migrates_older_database_with_draft_columns():
     # Check migration recorded the additions
     added_names = [f for f in added if f.startswith("draft.")]
     assert len(added_names) >= 6, f"Should add 6 draft columns, got {added_names}"
+
+
+# --- v0.6: draft.format CHECK rebuild ('long', 'short') -> ('long', 'medium',
+# --- 'short'). SQLite has no ALTER TABLE ... ALTER CHECK, so a database
+# --- already carrying the two-value CHECK (SCHEMA_VERSION 2 shape) needs a
+# --- full table rebuild, not an additive ALTER TABLE ADD COLUMN. ------------
+
+# The exact v2 draft table shape (format CHECK allows only 'long'/'short'),
+# alongside the other tables a real v2 database would already have, so the
+# migration is exercised against a realistic file rather than an isolated
+# `draft` table.
+_V2_SCHEMA = """
+CREATE TABLE broker (
+    id                INTEGER PRIMARY KEY,
+    name              TEXT NOT NULL,
+    domain            TEXT NOT NULL UNIQUE,
+    region            TEXT,
+    segment_evidence  TEXT,
+    source            TEXT NOT NULL CHECK (source IN ('discovered', 'manual')),
+    sunreef_affinity  TEXT NOT NULL DEFAULT 'unknown'
+                      CHECK (sunreef_affinity IN
+                             ('none', 'mentions', 'lists_inventory', 'unknown')),
+    affinity_evidence TEXT,
+    has_editorial     INTEGER,
+    has_newsletter    INTEGER,
+    newsletter_evidence TEXT,
+    editorial_last_post TEXT,
+    qualified         INTEGER,
+    qualified_reason  TEXT,
+    robots_allowed    INTEGER,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE angle (
+    id               INTEGER PRIMARY KEY,
+    broker_id        INTEGER NOT NULL REFERENCES broker(id),
+    title            TEXT NOT NULL,
+    premise          TEXT,
+    audience_value   TEXT,
+    sunreef_relevance TEXT,
+    score            REAL,
+    rejected_reason  TEXT
+);
+
+CREATE TABLE draft (
+    id                            INTEGER PRIMARY KEY,
+    angle_id                      INTEGER NOT NULL REFERENCES angle(id),
+    body_md                       TEXT NOT NULL,
+    word_count                    INTEGER,
+    sunreef_mentions              INTEGER,
+    passes_editorial_value_test   INTEGER,
+    status                        TEXT NOT NULL DEFAULT 'pending_review'
+                                  CHECK (status IN ('pending_review', 'approved',
+                                         'rejected', 'sent', 'published', 'declined')),
+    reviewed_by                   TEXT,
+    reviewed_at                   TEXT,
+    reviewer_edits                TEXT,
+    format                        TEXT CHECK (format IN ('long', 'short')),
+    passes_uniqueness             INTEGER,
+    max_similarity                REAL,
+    most_similar_draft_id         INTEGER,
+    passes_originality            INTEGER,
+    embedding                     TEXT
+);
+
+CREATE TABLE outcome (
+    draft_id          INTEGER PRIMARY KEY REFERENCES draft(id),
+    sent_at           TEXT,
+    response          TEXT,
+    published_url     TEXT,
+    utm_campaign      TEXT,
+    referral_sessions INTEGER,
+    inquiries INTEGER
+);
+
+CREATE TABLE draft_asset (
+    draft_id                INTEGER NOT NULL REFERENCES draft(id),
+    asset_id                TEXT,
+    provider                TEXT,
+    usage_rights_confirmed  INTEGER
+);
+"""
+
+
+def _seed_v2_database(conn: sqlite3.Connection) -> int:
+    """A v2-shaped database with one broker/angle/draft already on disk.
+    Returns the draft id, so the migration test can prove that exact row
+    survives the rebuild untouched."""
+    conn.executescript(_V2_SCHEMA)
+    conn.execute(f"PRAGMA user_version = 2")
+    conn.execute(
+        "INSERT INTO broker (name, domain, source) VALUES ('Old Yachts', 'old.com', 'manual')"
+    )
+    conn.execute("INSERT INTO angle (broker_id, title) VALUES (1, 'Old Angle')")
+    cursor = conn.execute(
+        "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
+        "VALUES (1, 'Pre-existing long body.', 4, 'pending_review', 'long')"
+    )
+    conn.commit()
+    return cursor.lastrowid
+
+
+def test_init_schema_migrates_a_v2_draft_table_to_allow_medium():
+    """The core claim: a database built before the three-format change
+    upgrades in place, and 'medium' becomes insertable afterward.
+    """
+    conn = db.connect(":memory:")
+    draft_id = _seed_v2_database(conn)
+
+    db.init_schema(conn)
+
+    # The CHECK constraint on disk now allows 'medium'.
+    sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='draft'"
+    ).fetchone()["sql"]
+    assert "medium" in sql
+
+    # The pre-existing row survived the rebuild with its data intact.
+    row = conn.execute("SELECT * FROM draft WHERE id=?", (draft_id,)).fetchone()
+    assert row is not None
+    assert row["body_md"] == "Pre-existing long body."
+    assert row["format"] == "long"
+    assert row["status"] == "pending_review"
+
+    # 'medium' is now insertable...
+    conn.execute(
+        "INSERT INTO draft (angle_id, body_md, format) VALUES (1, 'A medium post.', 'medium')"
+    )
+    got = conn.execute(
+        "SELECT format FROM draft WHERE body_md='A medium post.'"
+    ).fetchone()
+    assert got["format"] == "medium"
+
+    # ...while the CHECK constraint still rejects garbage.
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO draft (angle_id, body_md, format) VALUES (1, 'x', 'huge')"
+        )
+
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+
+
+def test_init_schema_draft_rebuild_preserves_foreign_key_references():
+    """`outcome` and `draft_asset` both reference draft(id) via FK; the
+    rebuild (rename/recreate/copy/drop) must not corrupt those references.
+    """
+    conn = db.connect(":memory:")
+    conn.execute("PRAGMA foreign_keys = ON")
+    draft_id = _seed_v2_database(conn)
+    conn.execute(
+        "INSERT INTO outcome (draft_id, response) VALUES (?, 'no reply yet')",
+        (draft_id,),
+    )
+    conn.commit()
+
+    db.init_schema(conn)
+
+    row = conn.execute(
+        "SELECT * FROM outcome WHERE draft_id=?", (draft_id,)
+    ).fetchone()
+    assert row is not None
+    assert row["response"] == "no reply yet"
+
+
+def test_init_schema_draft_rebuild_is_idempotent():
+    """Running init_schema again after the rebuild must not rebuild a second
+    time or duplicate rows (mirrors `test_init_schema_adds_nothing_to_a_current_database`).
+    """
+    conn = db.connect(":memory:")
+    _seed_v2_database(conn)
+    db.init_schema(conn)
+    before = conn.execute("SELECT COUNT(*) AS c FROM draft").fetchone()["c"]
+
+    added = db.init_schema(conn)
+
+    after = conn.execute("SELECT COUNT(*) AS c FROM draft").fetchone()["c"]
+    assert after == before
+    assert added == []

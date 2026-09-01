@@ -199,14 +199,21 @@ _ANGLES = {
     ),
 }
 
-#: broker domain -> {"long": body, "short": body or absent}. Realistic
-#: ~500-word articles and ~150-word condensations in the register each
-#: broker's seeded voice_profile describes -- the point of this fixture is
-#: for the operator to judge output of this shape, so filler text would
-#: defeat it. `anchorbay.invalid` deliberately has no "short" key: it is the
-#: degraded state (long draft written, short condensation failed) that
-#: `bce redraft` exists to repair, and the draft viewer must show that
-#: honestly rather than a blank panel.
+#: broker domain -> {"long": body, "medium": body, "short": body}, keys
+#: absent where the format was never written. Realistic ~500-word "pillar"
+#: placeholders, ~600-word regular-post condensations, and ~150-word
+#: newsletter condensations in the register each broker's seeded
+#: voice_profile describes -- the point of this fixture is for the operator
+#: to judge output of this shape, so filler text would defeat it.
+#:
+#: Only `meridian-yacht.invalid` (the fully-profiled broker) has a "medium"
+#: key: spec v0.6 §5 added the format, and seeding it here lets the draft
+#: viewer show all three panels for at least one broker with no API spend.
+#: `anchorbay.invalid` deliberately has no "short" key (and, unchanged by
+#: this task, no "medium" key either): it is the degraded state (long draft
+#: written, other formats' condensation failed) that `bce redraft` exists to
+#: repair, and the draft viewer must show that honestly rather than a blank
+#: panel.
 _DRAFTS = {
     "meridian-yacht.invalid": dict(
         long=(
@@ -261,6 +268,75 @@ _DRAFTS = {
             "actually belongs in a budget. Buyers who ask these questions "
             "before signing spend less in year two than buyers who "
             "discover them at anchor."
+        ),
+        # A regular-length blog post condensed from the "long" pillar piece
+        # above -- roughly this broker's typical_word_count (620), in the
+        # same "polished and consultative" register and carrying the same
+        # claims, standing in for a real write_medium output.
+        medium=(
+            "Most of our best client conversations start with a number "
+            "that's wrong. A first-time buyer walks in having priced a "
+            "catamaran against the sticker on the builder's website -- the "
+            "price of a boat as it left the yard, not a boat ready for open "
+            "water. That gap is where new owners find their most expensive "
+            "surprises, and it rarely shows up at the negotiating table. It "
+            "shows up eighteen months later, at anchor, when the turnkey "
+            "boat they closed on reveals every system it still needs before "
+            "a genuine bluewater passage makes sense. We see the same "
+            "pattern often enough that it is worth saying plainly, before "
+            "the first sea trial rather than after.\n\n"
+            "Start with power and water independence, not sail area. A "
+            "catamaran provisioned for charter service is built for a week "
+            "between marinas, with generator hours and shore power filling "
+            "the gaps. Bluewater cruising asks a harder question: can the "
+            "house bank run the watermaker, the autopilot, and the "
+            "refrigeration through three overcast days without the "
+            "engines? Buyers who skip that arithmetic end up retrofitting "
+            "solar arrays and lithium banks at anchor, at roughly double "
+            "the cost of specifying it before delivery. A proper survey "
+            "should price this gap in dollars, not adjectives -- “well "
+            "equipped” on a listing sheet is not a number anyone can "
+            "budget against.\n\n"
+            "The refit list that closes this gap is rarely dramatic -- it "
+            "is just long. Standing rigging inspection intervals. A "
+            "flybridge helm station rated for open-ocean spray rather than "
+            "harbor sun. Ground tackle sized for genuine anchorages "
+            "instead of marina overnights. Watertight bulkhead checks a "
+            "coastal survey never touches. Nothing on this list shows up in a "
+            "listing photo, and a broker who has actually delivered boats "
+            "offshore can walk a buyer through which items are cosmetic "
+            "and which separate a comfortable passage from a miserable one "
+            "-- and price each honestly instead of folding it all into "
+            "“as is.”\n\n"
+            "Ownership mindset matters as much as equipment. A week "
+            "chartering someone else's catamaran teaches almost nothing "
+            "about running your own systems at 2 a.m. in a squall, because "
+            "a charter crew has already solved every problem you never "
+            "saw. Builders like Sunreef increasingly offer an “owner's "
+            "version” layout for exactly this reason -- the difference is "
+            "whether a buyer treats that layout as a finished product or "
+            "as the starting point for genuine sea trials before the boat "
+            "ever leaves for open water.\n\n"
+            "This is also where a good delivery skipper earns their fee "
+            "twice over: once getting the boat to its home port, and "
+            "again teaching the new owner what each system actually "
+            "sounds like and feels like under load, well before the first "
+            "real passage. Owners who skip this step tend to discover "
+            "their systems' limits at the worst possible moment -- "
+            "mid-crossing, at night, rather than at the dock with a "
+            "professional standing beside them.\n\n"
+            "Nothing here is a reason to walk away from a catamaran "
+            "purchase. It is a reason to walk in with a checklist instead "
+            "of a brochure. When we sit down with a first-time buyer, the "
+            "conversation starts with how the boat will actually be used "
+            "-- coastal weekends, seasonal charter management, or a "
+            "genuine bluewater departure two years out. That answer "
+            "changes the refit priorities, the survey scope, and the "
+            "number that actually belongs in a budget. The buyers who ask "
+            "these questions before signing spend less in year two than "
+            "the ones who discover them at anchor -- and they are, "
+            "without exception, the ones who come back to us for the next "
+            "boat, turnkey checklist in hand instead of a brochure."
         ),
         short=(
             "What “Bluewater Ready” Actually Costs\n\n"
@@ -427,6 +503,8 @@ def seed_example(conn: sqlite3.Connection) -> int:
             drafts = _DRAFTS.get(row["domain"], {})
             if "long" in drafts:
                 _insert_draft(conn, angle_id, drafts["long"], "long")
+            if "medium" in drafts:
+                _insert_draft(conn, angle_id, drafts["medium"], "medium")
             if "short" in drafts:
                 _insert_draft(conn, angle_id, drafts["short"], "short")
     conn.commit()

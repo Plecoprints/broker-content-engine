@@ -6,7 +6,13 @@ SCHEMA_TABLES = ("broker", "voice_profile", "angle", "draft", "draft_asset", "ou
 #: Bumped whenever the shape below changes. Stored in `PRAGMA user_version` so
 #: an existing file can be recognised instead of silently keeping an old shape
 #: (`CREATE TABLE IF NOT EXISTS` never adds a column to a table that exists).
-SCHEMA_VERSION = 2
+#: Bumped to 3 for spec v0.6's three-format change: `draft.format`'s CHECK
+#: grows from `('long', 'short')` to `('long', 'medium', 'short')`. Unlike
+#: every other change so far, this is not an additive `ALTER TABLE ADD
+#: COLUMN` -- SQLite has no `ALTER TABLE ... ALTER CHECK`, so a v2 database
+#: needs `_rebuild_draft_table_for_medium_format` below (create-copy-drop-
+#: rename), not just a new column.
+SCHEMA_VERSION = 3
 
 #: Columns added to already-created tables after their first release. Applied
 #: additively by `init_schema` via ALTER TABLE, in declaration order.
@@ -18,7 +24,7 @@ ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
         "editorial_last_post": "TEXT",
     },
     "draft": {
-        "format": "TEXT CHECK (format IN ('long', 'short'))",
+        "format": "TEXT CHECK (format IN ('long', 'medium', 'short'))",
         "passes_uniqueness": "INTEGER",
         "max_similarity": "REAL",
         "most_similar_draft_id": "INTEGER",
@@ -103,7 +109,7 @@ CREATE TABLE IF NOT EXISTS draft (
     reviewed_by                   TEXT,
     reviewed_at                   TEXT,
     reviewer_edits                TEXT,
-    format                        TEXT CHECK (format IN ('long', 'short')),
+    format                        TEXT CHECK (format IN ('long', 'medium', 'short')),
     passes_uniqueness             INTEGER,
     max_similarity                REAL,
     most_similar_draft_id         INTEGER,
@@ -160,6 +166,58 @@ def _apply_additive_columns(conn: sqlite3.Connection) -> list[str]:
     return added
 
 
+def _draft_format_check_needs_rebuild(conn: sqlite3.Connection) -> bool:
+    """True when `draft.format` already exists but its CHECK predates 'medium'.
+
+    If `format` is missing entirely, the additive-column path below adds it
+    fresh with the current (three-value) CHECK text, so no rebuild is needed
+    there -- this only catches the case `ALTER TABLE ADD COLUMN` cannot fix:
+    a CHECK constraint already baked into the table's stored SQL.
+    """
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(draft)")}
+    if "format" not in cols:
+        return False
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='draft'"
+    ).fetchone()
+    sql = row["sql"] if row and row["sql"] else ""
+    return "medium" not in sql
+
+
+def _rebuild_draft_table_for_medium_format(conn: sqlite3.Connection) -> None:
+    """Rebuild `draft` in place so its format CHECK allows 'medium' too.
+
+    SQLite has no `ALTER TABLE ... ALTER CHECK` (or DROP/ADD CONSTRAINT); the
+    documented workaround is SQLite's own "12-step" procedure: rename the old
+    table out of the way, create the new (correct) one, copy every row across,
+    then drop the renamed original. `outcome` and `draft_asset` both hold a
+    `REFERENCES draft(id)` foreign key, so `foreign_keys` is turned off for the
+    duration -- otherwise renaming `draft` away mid-migration trips FK
+    enforcement on those other tables even though the rename preserves the
+    name (and therefore the reference) by the time the migration finishes.
+    """
+    old_cols = [r["name"] for r in conn.execute("PRAGMA table_info(draft)")]
+    fk_was_on = conn.execute("PRAGMA foreign_keys").fetchone()[0]
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.execute("ALTER TABLE draft RENAME TO _draft_pre_medium_migration")
+        # _SCHEMA declares the post-migration `draft` shape (three-value
+        # CHECK); every other CREATE TABLE IF NOT EXISTS in it is a no-op
+        # since those tables already exist.
+        conn.executescript(_SCHEMA)
+        new_cols = {r["name"] for r in conn.execute("PRAGMA table_info(draft)")}
+        shared = [c for c in old_cols if c in new_cols]
+        cols_sql = ", ".join(shared)
+        conn.execute(
+            f"INSERT INTO draft ({cols_sql}) "
+            f"SELECT {cols_sql} FROM _draft_pre_medium_migration"
+        )
+        conn.execute("DROP TABLE _draft_pre_medium_migration")
+        conn.commit()
+    finally:
+        conn.execute(f"PRAGMA foreign_keys = {'ON' if fk_was_on else 'OFF'}")
+
+
 def init_schema(conn: sqlite3.Connection) -> list[str]:
     """Create or upgrade the schema in place. Returns the columns it added."""
     found = conn.execute("PRAGMA user_version").fetchone()[0]
@@ -170,6 +228,8 @@ def init_schema(conn: sqlite3.Connection) -> list[str]:
             f"recreate the database with `bce init` against a new --db path."
         )
     conn.executescript(_SCHEMA)
+    if _draft_format_check_needs_rebuild(conn):
+        _rebuild_draft_table_for_medium_format(conn)
     added = _apply_additive_columns(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION:d}")
     conn.commit()
