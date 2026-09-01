@@ -1,6 +1,8 @@
 # Broker Partner Content Engine — Design Spec
 
-**Status:** v0.5 draft. Changes from v0.4: newsletter recognised as a publishing channel in its own right — qualification now passes on editorial **or** newsletter (§4, §5 Stage 2); every draft is produced in long and short formats, the short one built for the broker's email newsletter (§5 Stage 4); uniqueness comparison scoped within format so an article does not flag as a duplicate of its own summary (§5, §10.3).
+**Status:** v0.6 draft. Changes from v0.5, both decided by Luis on 2026-09-01: three draft formats instead of two — long is now a 2000–2300 word **pillar** article where voice matching is encouraged rather than binding, medium is the voice-matched regular post, short stays the newsletter form (§5 Stage 4, §8). And the backlink question is **settled and closed**: links are welcome if a broker chooses to give one, and are not a goal, not measured, and not designed for. Luis: *"if they do it great and if they don't we also still win."* §1's framing was already built for this; nothing in the design changes.
+
+Changes from v0.4: newsletter recognised as a publishing channel in its own right — qualification now passes on editorial **or** newsletter (§4, §5 Stage 2); every draft is produced in long and short formats, the short one built for the broker's email newsletter (§5 Stage 4); uniqueness comparison scoped within format so an article does not flag as a duplicate of its own summary (§5, §10.3).
 
 Changes from v0.3: originality split into three distinct checks with a corpus-wide uniqueness gate (§10.3); marketing asset library added as a deferred, interface-first dependency (§7, §11.3); Supabase evaluated and deferred with an explicit adoption trigger (§7).
 
@@ -96,12 +98,17 @@ Semrush (pending org approval) improves recall but is not a dependency.
 
 **Stage 4 — Angle + Draft.** Generate candidate angles scored against that broker's audience, then draft the highest-scoring angle in their register. The draft then passes the three originality gates (§10.3) before it may enter the review queue.
 
-Every draft is produced in **two formats from one angle**:
+Every draft is produced in **three formats from one angle**:
 
 | Format | Target | Shape |
 |---|---|---|
-| **Long** | The broker's blog/journal | Full article, matched to their typical word count from the voice profile |
-| **Short** | The broker's email newsletter | Compressed version — headline, 100–200 words, and a link back to the long form where one will exist |
+| **Long** (pillar) | The broker's blog, as a cornerstone piece | **2000–2300 words.** A pillar article — comprehensive coverage of the topic. Voice matching is *encouraged but not binding*: at this length the piece serves depth first, and no broker's `typical_word_count` will be near it. |
+| **Medium** | The broker's blog, as a regular post | **Matched to their `typical_word_count`** from the voice profile. This is the one that has to read like them — it sits alongside their own posts. |
+| **Short** | The broker's email newsletter | Compressed — headline, 100–200 words, and a link back to the long or medium form where one will exist. Voice-matched. |
+
+**Why long is the exception.** Voice matching and pillar length collide: a broker whose posts run 477 words will not publish a 2,200-word piece that reads nothing like their blog. So the long form is a *different product*, not a longer version of the same one — comprehensive by design, with the broker's register applied as far as it reasonably goes. Medium is the format that must genuinely pass as theirs.
+
+**Medium and short are condensations of the long form**, not independent generations (same angle, same claims). Short may be condensed from medium where that reads better.
 
 The short form is a condensation of the long form, not a separate piece: same angle, same claims, same voice. A broker with only a newsletter receives the short form as the primary deliverable, with the long form offered for their site if they want it.
 
@@ -190,7 +197,7 @@ outcome(draft_id, sent_at, response, published_url, utm_campaign,
 `broker.source` ∈ `discovered | manual`.
 `broker.sunreef_affinity` ∈ `none | mentions | lists_inventory | unknown` — ordering only (§4).
 `broker.has_editorial` and `broker.has_newsletter` are independent booleans; qualification requires at least one (§4).
-`draft.format` ∈ `long | short` — see §5 Stage 4. Uniqueness comparison is scoped within format.
+`draft.format` ∈ `long | medium | short` — see §5 Stage 4. Uniqueness comparison is scoped **within format**, so three buckets: a pillar piece is never compared against a newsletter blurb, and an article never flags as a duplicate of its own summary.
 `draft.status` ∈ `pending_review | approved | rejected | sent | published | declined`.
 Nothing reaches `sent` without a human in `reviewed_by`.
 
