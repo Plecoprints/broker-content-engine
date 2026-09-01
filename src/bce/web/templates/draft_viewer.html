@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Drafts — {{ broker["name"] }} — Broker Content Engine{% endblock %}
+{% block content %}
+  {% if message %}
+    <div class="flash {{ 'flash-ok' if ok else 'flash-error' }}">{{ message }}</div>
+  {% endif %}
+
+  <a class="add-link" href="/">&larr; Back to shortlist</a>
+
+  <h2>{{ broker["name"] }}</h2>
+  <p class="muted">
+    {% if broker["domain"] %}
+      <span class="domain">{{ broker["domain"] }}</span>
+    {% else %}
+      domain unspecified
+    {% endif %}
+  </p>
+
+  {% if angle %}
+    <div class="flash flash-error">
+      <strong>Unvetted machine output.</strong> Nothing below has been through
+      spec &sect;10.3's originality gates or &sect;3's editorial value test
+      &mdash; those checks are not built yet. Every draft here carries
+      <code>status=&#39;pending_review&#39;</code> and has not been reviewed by
+      a human. This page is a reading view only; it is not an approval
+      workflow.
+    </div>
+
+    <section class="panel" style="max-width: none;">
+      <h2>Angle</h2>
+      <p><strong>{{ angle["title"] or "Untitled angle" }}</strong></p>
+      {% if angle["score"] is not none %}
+        <p class="muted">Score: {{ "%.2f"|format(angle["score"]) }}</p>
+      {% endif %}
+      <p>
+        {% if angle["premise"] %}
+          {{ angle["premise"] }}
+        {% else %}
+          <span class="muted">No premise recorded.</span>
+        {% endif %}
+      </p>
+      <p><strong>Audience value:</strong>
+        {% if angle["audience_value"] %}
+          {{ angle["audience_value"] }}
+        {% else %}
+          <span class="muted">not stated</span>
+        {% endif %}
+      </p>
+      <p><strong>Sunreef relevance:</strong>
+        {% if angle["sunreef_relevance"] %}
+          {{ angle["sunreef_relevance"] }}
+        {% else %}
+          <span class="muted">not stated</span>
+        {% endif %}
+      </p>
+    </section>
+
+    <section class="panel" style="max-width: none;">
+      <h2>Long draft</h2>
+      {% if long_draft %}
+        <p class="muted">
+          {% if long_draft["word_count"] is not none %}
+            {{ long_draft["word_count"] }} words
+          {% else %}
+            word count unknown
+          {% endif %}
+        </p>
+        {% for para in long_draft["body_md"] | paragraphs %}
+          <p>{{ para }}</p>
+        {% endfor %}
+      {% else %}
+        <p class="muted">No long draft on file for this angle.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel" style="max-width: none;">
+      <h2>Short draft</h2>
+      {% if short_draft %}
+        <p class="muted">
+          {% if short_draft["word_count"] is not none %}
+            {{ short_draft["word_count"] }} words
+          {% else %}
+            word count unknown
+          {% endif %}
+        </p>
+        {% for para in short_draft["body_md"] | paragraphs %}
+          <p>{{ para }}</p>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <p>Short condensation failed for this draft. The long draft above
+          was written, but condensing it to short form did not succeed. Run
+          <code>bce redraft {{ broker["domain"] }}</code> to try again.</p>
+        </div>
+      {% endif %}
+    </section>
+  {% else %}
+    <div class="empty-state">
+      <p>No draft yet for this broker. Run <code>bce draft</code> to propose
+      an angle and write one.</p>
+    </div>
+  {% endif %}
+{% endblock %}

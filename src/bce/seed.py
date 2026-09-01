@@ -153,6 +153,190 @@ _PROFILES = {
 }
 
 
+#: broker domain -> the one angle `drafting.draft_for_broker` would have
+#: persisted for it (spec §5 Stage 4: only the chosen angle is kept, not the
+#: full candidate set `AngleClient.propose` returns).
+_ANGLES = {
+    "meridian-yacht.invalid": dict(
+        title="What “Bluewater Ready” Actually Costs a First-Time Catamaran Owner",
+        premise=(
+            "Most first-time buyers price a catamaran against the sticker on "
+            "the flybridge, not against what it costs to make it genuinely "
+            "capable of an ocean passage -- the systems, the refit line "
+            "items, and the ownership mindset that separate a coastal "
+            "cruiser from a bluewater one."
+        ),
+        audience_value=(
+            "Helps a first-time buyer budget and negotiate with eyes open, "
+            "instead of discovering the real cost of ocean-readiness only "
+            "after closing."
+        ),
+        sunreef_relevance=(
+            "Names a Sunreef model alongside the broker's own delivery "
+            "experience as one example of an “owner's version” "
+            "layout, without making the piece about Sunreef."
+        ),
+        score=0.83,
+    ),
+    "anchorbay.invalid": dict(
+        title="Why Haul-Out Timing Matters More Than Slip Fees on the Great Lakes",
+        premise=(
+            "Owners who chase the cheapest slip often lose more to a rushed "
+            "haul-out and improper winterization than they saved in fees -- "
+            "timing the haul-out around the lake's actual freeze pattern "
+            "protects the investment more than marina shopping does."
+        ),
+        audience_value=(
+            "Gives Great Lakes families a practical seasonal-storage "
+            "framework so they stop treating haul-out as an afterthought."
+        ),
+        sunreef_relevance=(
+            "Mentions a Sunreef catamaran among multihulls that need "
+            "independent per-hull winterization, without making the piece "
+            "about Sunreef."
+        ),
+        score=0.71,
+    ),
+}
+
+#: broker domain -> {"long": body, "short": body or absent}. Realistic
+#: ~500-word articles and ~150-word condensations in the register each
+#: broker's seeded voice_profile describes -- the point of this fixture is
+#: for the operator to judge output of this shape, so filler text would
+#: defeat it. `anchorbay.invalid` deliberately has no "short" key: it is the
+#: degraded state (long draft written, short condensation failed) that
+#: `bce redraft` exists to repair, and the draft viewer must show that
+#: honestly rather than a blank panel.
+_DRAFTS = {
+    "meridian-yacht.invalid": dict(
+        long=(
+            "Every season we meet a buyer who has already decided on a "
+            "catamaran and is now negotiating price against a number they "
+            "saw on a builder's website. That number describes a boat as it "
+            "left the yard, not a boat ready to cross an ocean. The gap "
+            "between those two conditions is where first-time owners get "
+            "their most expensive surprises -- not in the negotiation, but "
+            "in the eighteen months after closing, when the boat that "
+            "looked turnkey at the dock reveals every system it still needs "
+            "before a genuine bluewater passage makes sense.\n\n"
+            "Start with power and water independence, not sail area. A "
+            "catamaran built for charter service is provisioned for a week "
+            "between marinas, with generator hours and shore power filling "
+            "in the gaps. Bluewater cruising asks a different question: can "
+            "the house bank carry the watermaker, the autopilot, and the "
+            "refrigeration through three consecutive overcast days without "
+            "running the engines? Buyers who skip this arithmetic end up "
+            "retrofitting solar arrays and lithium banks at anchor, at "
+            "double the cost and half the warranty coverage of specifying "
+            "it before delivery. A proper survey should price this gap in "
+            "dollars, not adjectives.\n\n"
+            "The refit list itself is rarely dramatic -- it is long. "
+            "Standing rigging inspection intervals, a flybridge helm "
+            "station rated for open-ocean spray rather than harbor sun, "
+            "ground tackle sized for genuine anchorages instead of marina "
+            "overnights, and watertight bulkhead checks that a coastal "
+            "survey never touches. Few of these show up in a listing "
+            "photo. A broker who has actually delivered boats offshore can "
+            "walk a buyer through which items are cosmetic and which are "
+            "the difference between a comfortable passage and a miserable "
+            "one, and price each honestly rather than folding them into "
+            "“as is.”\n\n"
+            "Ownership mindset matters as much as equipment. A week "
+            "chartering someone else's catamaran teaches you almost "
+            "nothing about running your own systems at 2 a.m. in a squall, "
+            "because a charter crew has already solved every problem you "
+            "never saw. Builders like Sunreef increasingly offer an "
+            "“owner's version” layout precisely because this gap "
+            "is well understood in the industry -- the difference is "
+            "whether a buyer treats that layout as a finished product or "
+            "as the starting point for genuine sea trials before the boat "
+            "ever leaves for open water.\n\n"
+            "This is not a reason to walk away from a catamaran purchase "
+            "-- it is a reason to walk in with a checklist instead of a "
+            "brochure. When we sit down with a first-time buyer, the "
+            "conversation starts with how the boat will actually be used: "
+            "coastal weekends, seasonal charter management, or a genuine "
+            "bluewater departure two years from now. That answer changes "
+            "the refit priorities, the survey scope, and the number that "
+            "actually belongs in a budget. Buyers who ask these questions "
+            "before signing spend less in year two than buyers who "
+            "discover them at anchor."
+        ),
+        short=(
+            "What “Bluewater Ready” Actually Costs\n\n"
+            "Most first-time catamaran buyers price the boat they see at "
+            "the show, not the boat that can actually cross an ocean. The "
+            "gap between the two is where new owners get their most "
+            "expensive surprises. A charter-provisioned catamaran carries "
+            "enough power and water independence for a week between "
+            "marinas -- bluewater cruising asks whether the house bank can "
+            "run the watermaker, autopilot, and refrigeration through three "
+            "overcast days without the engines. The refit list that closes "
+            "that gap is rarely dramatic, just long: rigging inspection "
+            "intervals, a flybridge helm built for open-ocean spray, proper "
+            "ground tackle, watertight bulkhead checks. Builders like "
+            "Sunreef now sell “owner's version” layouts because "
+            "the industry knows this gap exists. The fix is not avoiding a "
+            "catamaran purchase -- it is walking in with a checklist, not "
+            "a brochure, and pricing ocean-readiness honestly before you "
+            "sign."
+        ),
+    ),
+    "anchorbay.invalid": dict(
+        long=(
+            "Every fall, the same conversation happens at the club: "
+            "someone found a slip forty miles up the shore for two hundred "
+            "dollars less than the marina near their cottage, and they're "
+            "ready to move the boat. What that conversation skips is "
+            "timing. A cheaper slip that pulls your haul-out into late "
+            "October instead of mid-September isn't a discount -- it's a "
+            "bet against an early freeze, and on these lakes that bet "
+            "doesn't always pay off. Families who've owned a catamaran "
+            "here for more than one season already know: the real cost of "
+            "freshwater cruising isn't the fee, it's the calendar.\n\n"
+            "Freshwater is less forgiving than it looks. Ice doesn't just "
+            "sit on the surface -- it works into hull fittings, seacocks, "
+            "and anything holding water that wasn't properly winterized. A "
+            "haul-out rushed because a slip contract ran long, or delayed "
+            "because a hauling slot filled up, leaves systems exposed to a "
+            "freeze they were never built for. The families who avoid "
+            "trouble aren't the ones who found the cheapest slip fees. "
+            "They're the ones who booked their haul-out date before they "
+            "booked the slip, and built the whole season's plan around "
+            "it.\n\n"
+            "This matters even more on a catamaran than a monohull, and "
+            "it's worth saying plainly: twin hulls mean twin sets of "
+            "everything below the waterline -- two sets of thru-hulls, two "
+            "engine rooms, two bilges to check before the cold sets in. A "
+            "Sunreef or a similarly built multihull needs a winterization "
+            "checklist that accounts for both hulls independently, not a "
+            "single pass that assumes symmetry will save time. Skipping a "
+            "hull because “it's probably the same as the other "
+            "side” is exactly how a cracked fitting gets discovered in "
+            "April instead of October, at ten times the repair cost.\n\n"
+            "This does not need to be complicated. Talk to your yard about "
+            "their actual haul-out schedule before you sign a slip "
+            "contract, not after. Ask what happens if an early cold snap "
+            "moves the schedule up a week -- plenty of yards will, and "
+            "plenty of owners find out the hard way that their contract "
+            "didn't cover it. A slip forty miles up the shore might still "
+            "be the right call. Just make sure the number you're comparing "
+            "includes what a late haul-out could cost, not only what an "
+            "early one saves.\n\n"
+            "Every season on these lakes rewards patience over shortcuts, "
+            "and haul-out planning is where that shows up first. The "
+            "owners we hear from years later aren't the ones who found the "
+            "best fee -- they're the ones whose boat came out of winter "
+            "storage exactly the way it went in. That's worth more than "
+            "two hundred dollars in September, and it's the first thing "
+            "worth asking about before the slip contract, not after."
+        ),
+        # No "short" key: condensation failed for this broker (the
+        # degraded state `bce redraft` repairs).
+    ),
+}
+
+
 def _insert_broker(conn: sqlite3.Connection, row: dict) -> int:
     cursor = conn.execute(
         "INSERT INTO broker (name, domain, region, segment_evidence, source, "
@@ -193,6 +377,29 @@ def _insert_profile(conn: sqlite3.Connection, broker_id: int, profile: dict) -> 
     )
 
 
+def _insert_angle(conn: sqlite3.Connection, broker_id: int, angle: dict) -> int:
+    cursor = conn.execute(
+        "INSERT INTO angle (broker_id, title, premise, audience_value, "
+        "sunreef_relevance, score) VALUES (?,?,?,?,?,?)",
+        (
+            broker_id, angle["title"], angle["premise"],
+            angle["audience_value"], angle["sunreef_relevance"], angle["score"],
+        ),
+    )
+    return cursor.lastrowid
+
+
+def _insert_draft(conn: sqlite3.Connection, angle_id: int, body: str, fmt: str) -> None:
+    # Mirrors `drafting.draft_for_broker`: status is always 'pending_review'
+    # -- nothing here has been through §10.3's originality gates or §3's
+    # editorial value test, and no seed row ever carries a human reviewer.
+    conn.execute(
+        "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
+        "VALUES (?,?,?,?,?)",
+        (angle_id, body, len(body.split()), "pending_review", fmt),
+    )
+
+
 def seed_example(conn: sqlite3.Connection) -> int:
     """Insert the example brokers, idempotently. Returns how many were inserted.
 
@@ -214,5 +421,13 @@ def seed_example(conn: sqlite3.Connection) -> int:
         profile = _PROFILES.get(row["domain"])
         if profile is not None:
             _insert_profile(conn, broker_id, profile)
+        angle = _ANGLES.get(row["domain"])
+        if angle is not None:
+            angle_id = _insert_angle(conn, broker_id, angle)
+            drafts = _DRAFTS.get(row["domain"], {})
+            if "long" in drafts:
+                _insert_draft(conn, angle_id, drafts["long"], "long")
+            if "short" in drafts:
+                _insert_draft(conn, angle_id, drafts["short"], "short")
     conn.commit()
     return inserted

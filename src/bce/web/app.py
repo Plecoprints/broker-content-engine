@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -42,6 +42,20 @@ def _flash(request: Request) -> dict:
     }
 
 
+def _paragraphs(body: str | None) -> list[str]:
+    """Split markdown-ish prose into paragraphs on blank lines.
+
+    Draft bodies are prose, not real markdown (see `bce.drafting`), so this
+    deliberately does not pull in a markdown renderer -- it only preserves
+    the paragraph breaks the model actually wrote, one `<p>` per blank-line-
+    separated block. `None` degrades to no paragraphs, never a rendered
+    "None".
+    """
+    if not body:
+        return []
+    return [p.strip() for p in body.split("\n\n") if p.strip()]
+
+
 def _broker_count(conn) -> int:
     return conn.execute("SELECT COUNT(*) AS c FROM broker").fetchone()["c"]
 
@@ -54,6 +68,7 @@ def create_app(db_path: str) -> FastAPI:
     app = FastAPI(title="Broker Content Engine")
     app.state.db_path = db_path
     _TEMPLATES.env.filters["fromjson"] = lambda v: _loads(v, None)
+    _TEMPLATES.env.filters["paragraphs"] = _paragraphs
 
     @app.get("/", response_class=HTMLResponse)
     def shortlist(request: Request):
@@ -62,7 +77,52 @@ def create_app(db_path: str) -> FastAPI:
         brokers = discover.list_brokers(conn)
         return _TEMPLATES.TemplateResponse(
             request=request, name="shortlist.html",
-            context={"brokers": brokers, **_flash(request)},
+            context={
+                "brokers": brokers,
+                "broker_ids_with_drafts": discover.broker_ids_with_drafts(conn),
+                **_flash(request),
+            },
+        )
+
+    @app.get("/broker/{broker_id}/drafts", response_class=HTMLResponse)
+    def broker_drafts(request: Request, broker_id: int):
+        conn = db.connect(app.state.db_path)
+        db.init_schema(conn)
+        broker = conn.execute(
+            "SELECT * FROM broker WHERE id=?", (broker_id,)
+        ).fetchone()
+        if broker is None:
+            raise HTTPException(status_code=404, detail="broker not found")
+
+        # Only the chosen angle is ever persisted (spec §5 Stage 4) -- take
+        # the most recent in case a broker was ever redrafted more than once.
+        angle = conn.execute(
+            "SELECT * FROM angle WHERE broker_id=? ORDER BY id DESC LIMIT 1",
+            (broker_id,),
+        ).fetchone()
+
+        long_draft = short_draft = None
+        if angle is not None:
+            long_draft = conn.execute(
+                "SELECT * FROM draft WHERE angle_id=? AND format='long' "
+                "ORDER BY id DESC LIMIT 1",
+                (angle["id"],),
+            ).fetchone()
+            short_draft = conn.execute(
+                "SELECT * FROM draft WHERE angle_id=? AND format='short' "
+                "ORDER BY id DESC LIMIT 1",
+                (angle["id"],),
+            ).fetchone()
+
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="draft_viewer.html",
+            context={
+                "broker": broker,
+                "angle": angle,
+                "long_draft": long_draft,
+                "short_draft": short_draft,
+                **_flash(request),
+            },
         )
 
     @app.get("/add", response_class=HTMLResponse)

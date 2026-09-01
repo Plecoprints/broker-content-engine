@@ -291,6 +291,17 @@ def clear_drafts(conn: sqlite3.Connection, *, domain: str | None = None) -> int:
     return cleared
 
 
+def broker_ids_with_drafts(conn: sqlite3.Connection) -> set[int]:
+    """Brokers that have at least a chosen angle (spec §9 draft viewer).
+
+    `drafting.draft_for_broker` never inserts an `angle` row without also
+    inserting its long-form `draft` row in the same commit (see
+    `undrafted_brokers`), so "has an angle" is the cheap, equivalent way to
+    ask "has drafts to show" without a join through `draft`.
+    """
+    return {r["broker_id"] for r in conn.execute("SELECT DISTINCT broker_id FROM angle")}
+
+
 def clear_voice_profile(
     conn: sqlite3.Connection, *, domain: str | None = None
 ) -> int:
