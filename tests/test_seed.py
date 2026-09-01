@@ -147,3 +147,71 @@ def test_seed_gives_one_broker_a_long_draft_but_no_short_draft():
     ).fetchone()
     assert long_draft is not None
     assert len(long_draft["body_md"].split()) > 50
+
+
+def test_seed_long_drafts_are_genuine_pillar_length():
+    """The seed is what the operator opens to understand what each format IS
+    (draft_viewer.html labels the panel "Long draft (pillar)"). A ~470-word
+    placeholder next to that label teaches the wrong thing about the product
+    -- spec v0.6 §5 defines long as 2000-2300 words. Covers both seeded long
+    drafts, including anchorbay.invalid's deliberately-degraded (long only)
+    broker: "degraded" means no medium/short, not a short long draft.
+    """
+    conn = _conn()
+    seed.seed_example(conn)
+    rows = conn.execute(
+        "SELECT b.domain, d.word_count FROM draft d "
+        "JOIN angle a ON a.id = d.angle_id "
+        "JOIN broker b ON b.id = a.broker_id "
+        "WHERE d.format = 'long'"
+    ).fetchall()
+    domains = {r["domain"] for r in rows}
+    assert {"meridian-yacht.invalid", "anchorbay.invalid"} <= domains
+    for row in rows:
+        assert 2000 <= row["word_count"] <= 2300, (
+            f"{row['domain']}'s long draft is {row['word_count']} words, "
+            "outside the 2000-2300 word pillar range (spec v0.6 §5)"
+        )
+
+
+def test_seed_meridian_medium_and_short_are_honest_compressions_of_long():
+    """Every distinctive claim/vocabulary item present in the medium or short
+    draft must also appear in the long draft it was condensed from (spec
+    v0.6 §5: "medium and short are condensations of the long form ... same
+    angle, same claims"). Catches the case the coordinator flagged: rewriting
+    the long body without checking medium/short still support it.
+    """
+    conn = _conn()
+    seed.seed_example(conn)
+    broker = conn.execute(
+        "SELECT id FROM broker WHERE domain='meridian-yacht.invalid'"
+    ).fetchone()
+    angle = conn.execute(
+        "SELECT id FROM angle WHERE broker_id=?", (broker["id"],)
+    ).fetchone()
+    bodies = {
+        r["format"]: r["body_md"].lower()
+        for r in conn.execute(
+            "SELECT format, body_md FROM draft WHERE angle_id=?", (angle["id"],)
+        )
+    }
+    long_body = bodies["long"]
+    # Distinctive claims/vocabulary that appear in medium and/or short --
+    # every one of these must be traceable to the long body they were
+    # condensed from.
+    claims = [
+        "eighteen months", "turnkey", "bluewater passage", "watermaker",
+        "autopilot", "refrigeration", "overcast days", "double the cost",
+        "well equipped", "standing rigging", "flybridge helm",
+        "open-ocean spray", "ground tackle", "watertight bulkhead",
+        "coastal survey", "owner's version", "sunreef", "delivery skipper",
+        "mid-crossing", "checklist", "brochure", "spend less in year two",
+    ]
+    for claim in claims:
+        in_medium = claim in bodies.get("medium", "")
+        in_short = claim in bodies.get("short", "")
+        if in_medium or in_short:
+            assert claim in long_body, (
+                f"{claim!r} appears in medium/short but not in the long body "
+                "it was supposedly condensed from"
+            )

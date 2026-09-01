@@ -38,9 +38,12 @@ def test_drafts_page_renders_for_broker_with_all_three_drafts(tmp_path):
     assert "meridian-yacht.invalid" in body
     # The angle.
     assert "Bluewater Ready" in body
-    # The long draft body and its word count.
+    # The long draft body (genuine ~2000-2300 word pillar content, not the
+    # medium/short condensations -- "bridgedeck" only appears in the pillar
+    # piece) and its word count.
     assert "bluewater passage" in body
-    assert "477" in body
+    assert "bridgedeck" in body
+    assert "2059" in body
     # The medium draft body and its word count.
     assert "delivery skipper earns their fee twice over" in body
     assert "603" in body
