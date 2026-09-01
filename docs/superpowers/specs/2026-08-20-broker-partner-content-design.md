@@ -192,12 +192,26 @@ separate commercial question.
 
 So the seam at `AngleClient(keyword_source=...)` is filled in two stages:
 
-1. **Now — banked.** Keyword research is run interactively and loaded into the `keyword` table. This works
-   today with no new entitlement, and it is not a meaningful compromise: keyword economics for a niche this
-   narrow move on a quarterly timescale, not a weekly one, and the bank costs nothing per draft.
+1. **Now — an operator-curated bank.** The operator does their own Semrush research and exports a CSV,
+   which is imported into the `keyword` table (`bce keywords import`). This works today with no new
+   entitlement, and it is *better* than an automated lookup rather than a fallback from one: which keywords
+   are commercially worth chasing is a judgement about the business, not a metric. Keyword economics in a
+   niche this narrow also move on a quarterly timescale, so a curated bank refreshed occasionally loses
+   nothing to a live call, and costs nothing per draft.
 2. **Later — live.** A `SemrushClient` implementing the same interface, if and when API access exists.
 
 Nothing downstream knows which one it is talking to.
+
+**The import is a real ingestion problem, not a file read.** Semrush emits different headers per tool,
+comma *and* semicolon delimiters, Excel BOMs, thousands separators, and blank or `n/a` metrics. The
+importer tolerates all of it, and any row it cannot parse is **skipped and reported, never guessed** —
+silently dropping a keyword the operator deliberately chose is the worst available failure.
+
+**The operator exports their whole considered list, not a pre-filtered one.** Everything parsable is
+imported and `qualifies` is recorded per keyword; only qualifying keywords are eligible for automatic
+selection. The import then reports the split — how many qualified, how many missed which threshold. That
+report is the substance of the feature: it tells the operator what their research actually yielded, and
+where the data disagrees with their instinct.
 
 ### When nothing qualifies
 
