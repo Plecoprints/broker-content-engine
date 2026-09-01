@@ -232,6 +232,27 @@ def _draft_label(result) -> str:
     return "drafted (long + short)"
 
 
+def cmd_redraft(db_path: str, domain: str | None = None) -> int:
+    """Clear a broker's angle+draft rows so Stage 4 drafts again (F1).
+
+    Without this, a broker whose long draft succeeded but whose short
+    condensation failed is stranded forever: `undrafted_brokers` excludes any
+    broker with a `draft` row at all. Mirrors `reprofile` / `requalify`.
+    """
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    cleared = discover.clear_drafts(conn, domain=domain)
+    if cleared == 0:
+        if domain:
+            print(f"no draft found for {domain}")
+            return 1
+        print("no degraded drafts to redraft")
+        return 0
+    scope = domain if domain else "degraded drafts"
+    print(f"cleared {cleared} draft(s) for {scope}; run `bce draft` again")
+    return 0
+
+
 def cmd_seed_example(db_path: str) -> int:
     conn = db.connect(db_path)
     db.init_schema(conn)
@@ -271,6 +292,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_draft = sub.add_parser("draft")
     p_draft.add_argument("--limit", type=int, default=MAX_DRAFT_CALLS)
+    p_redraft = sub.add_parser("redraft")
+    p_redraft.add_argument(
+        "domain", nargs="?",
+        help="broker domain to redraft; omit to clear every degraded draft "
+             "(long written, short condensation failed)",
+    )
     sub.add_parser("seed-example")
     p_serve = sub.add_parser("serve")
     p_serve.add_argument("--host", default="127.0.0.1")
@@ -293,6 +320,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_reprofile(args.db, args.domain)
     if args.command == "draft":
         return cmd_draft(args.db, args.limit)
+    if args.command == "redraft":
+        return cmd_redraft(args.db, args.domain)
     if args.command == "seed-example":
         return cmd_seed_example(args.db)
     if args.command == "serve":

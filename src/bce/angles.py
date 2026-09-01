@@ -12,6 +12,8 @@ import json
 
 import anthropic
 
+from bce.draft import COMPETITORS
+
 MODEL = "claude-opus-5"
 MAX_TOKENS = 2048
 
@@ -98,7 +100,10 @@ _SYSTEM = (
     "You propose article angles for a yacht brokerage's own editorial content. "
     "Each angle must be something this specific broker would plausibly publish "
     "to help sell yachts and serve their clients — not an advertisement for any "
-    "yacht brand. Calibrate to the voice profile given: its register, themes, "
+    "yacht brand. Never propose an angle that disparages or positions against "
+    f"named competitors -- {', '.join(COMPETITORS)} are never named or argued "
+    "against in an angle, regardless of how relevant the comparison might "
+    "seem. Calibrate to the voice profile given: its register, themes, "
     "audience, and vocabulary. Score each angle 0-1 on how compelling and "
     "publishable it is for this broker's actual readers."
 )

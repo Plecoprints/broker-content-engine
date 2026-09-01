@@ -16,7 +16,14 @@ def test_init_schema_creates_draft_columns():
 
 
 def test_init_schema_creates_draft_asset_table():
-    """The draft_asset table exists after init_schema."""
+    """The draft_asset table exists after init_schema, and matches spec §8
+    exactly: draft_asset(draft_id, asset_id, provider, usage_rights_confirmed).
+
+    A presence-only check (F5) would have passed against the old, wrong
+    shape -- `draft_asset(id, draft_id, asset_type, asset_url, metadata,
+    created_at)` -- which shares no column with the spec beyond `draft_id`
+    and silently dropped `usage_rights_confirmed`, the column §10.7 requires.
+    """
     conn = db.connect(":memory:")
     db.init_schema(conn)
 
@@ -24,6 +31,38 @@ def test_init_schema_creates_draft_asset_table():
         "SELECT name FROM sqlite_master WHERE type='table' AND name='draft_asset'"
     ).fetchall()
     assert len(rows) == 1, "draft_asset table must exist"
+
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(draft_asset)")}
+    assert cols == {"draft_id", "asset_id", "provider", "usage_rights_confirmed"}, (
+        f"draft_asset must match spec section 8 exactly, got {cols}"
+    )
+
+
+def test_init_schema_migrates_an_old_shaped_draft_asset_table():
+    """A database built before F5's fix keeps its old draft_asset columns
+    (nothing reads or writes them) but gains the three correct ones.
+    """
+    conn = db.connect(":memory:")
+    conn.executescript(
+        """
+        CREATE TABLE draft_asset (
+            id                INTEGER PRIMARY KEY,
+            draft_id          INTEGER NOT NULL,
+            asset_type        TEXT,
+            asset_url         TEXT,
+            metadata          TEXT,
+            created_at        TEXT
+        );
+        """
+    )
+    conn.commit()
+
+    added = db.init_schema(conn)
+
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(draft_asset)")}
+    assert {"asset_id", "provider", "usage_rights_confirmed"} <= cols
+    assert "draft_asset.asset_id" in added
+    assert "draft_asset.usage_rights_confirmed" in added
 
 
 def test_schema_version_bumped_to_2():

@@ -42,8 +42,11 @@ class FakeMessages:
             raise self.raises
         if self.stop_reason == "refusal":
             return type("R", (), {"content": [], "stop_reason": "refusal"})()
+        # A max_tokens cutoff still carries a (truncated) text block -- it is
+        # only the refusal case that ordinarily has none. Pass stop_reason
+        # through rather than hardcoding "end_turn" so tests can exercise it.
         block = type("B", (), {"type": "text", "text": self.text})()
-        return type("R", (), {"content": [block], "stop_reason": "end_turn"})()
+        return type("R", (), {"content": [block], "stop_reason": self.stop_reason})()
 
 
 class FakeClient:
@@ -113,3 +116,31 @@ def test_write_short_returns_none_on_api_error():
 def test_write_short_returns_none_on_refusal():
     fake = FakeClient(stop_reason="refusal")
     assert DraftClient(client=fake).write_short(LONG_BODY, PROFILE) is None
+
+
+def test_write_short_returns_none_on_max_tokens_truncation():
+    """F2: same treatment as write_long -- a max_tokens cutoff is a failure,
+    not a truncated-but-persisted short draft.
+    """
+    fake = FakeClient(text="Headline: Winter Char", stop_reason="max_tokens")
+    assert DraftClient(client=fake).write_short(LONG_BODY, PROFILE) is None
+
+
+# --- F6: the short prompt must carry both spec constraints, same as long ----
+
+
+def test_write_short_prompt_instructs_sunreef_as_one_example_not_the_subject():
+    fake = FakeClient()
+    DraftClient(client=fake).write_short(LONG_BODY, PROFILE)
+    system = fake.messages.calls[0]["system"]
+    assert "Sunreef" in system
+    assert "example" in system.lower()
+    assert "not" in system.lower()
+
+
+def test_write_short_prompt_forbids_competitor_disparagement():
+    fake = FakeClient()
+    DraftClient(client=fake).write_short(LONG_BODY, PROFILE)
+    system = fake.messages.calls[0]["system"]
+    for competitor in ("Lagoon", "Fountaine Pajot", "Catana"):
+        assert competitor in system

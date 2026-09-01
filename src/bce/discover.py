@@ -199,8 +199,8 @@ def unprofiled_brokers(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row
 
 
 def undrafted_brokers(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
-    """Profiled brokers (a `voice_profile` row exists) with no draft yet
-    (spec §5 Stage 4/5).
+    """Qualified, profiled brokers (a `voice_profile` row exists) with no
+    draft yet (spec §5 Stage 4/5).
 
     A broker counts as drafted once any `draft` row exists for it — reached
     via `angle.broker_id`, since `draft` itself only carries `angle_id`.
@@ -209,17 +209,86 @@ def undrafted_brokers(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]
     equivalent to "has an angle" in practice; phrased as `NOT EXISTS` over
     `draft` (rather than over `angle`) so it stays correct even if that
     invariant ever changes.
+
+    `b.qualified = 1` is required explicitly: a profile row does not imply
+    qualification stayed intact. `clear_qualification` sets `qualified=NULL`
+    while leaving `voice_profile` alone, and without this filter a broker
+    pulled from the working set via `bce requalify` would still be selected
+    here and spend three Opus calls on someone deliberately rejected.
+
+    Ordered warmest-first (spec §4), the same `_AFFINITY_ORDER` as
+    `unprofiled_brokers`: with up to 50 qualified brokers and only 10 drafted
+    per run, ordering doesn't just sequence, it selects, and §13 asks the
+    pilot to run on a high-affinity broker. Ordering only -- every eligible
+    broker is still returned and treated identically; affinity decides
+    position in the queue and nothing else (see `_AFFINITY_ORDER`).
     """
     return conn.execute(
         "SELECT b.id, b.domain FROM broker b "
         "JOIN voice_profile v ON v.broker_id = b.id "
-        "WHERE NOT EXISTS ("
+        "WHERE b.qualified = 1 AND NOT EXISTS ("
         "  SELECT 1 FROM draft d JOIN angle a ON a.id = d.angle_id "
         "  WHERE a.broker_id = b.id"
         ") "
-        "ORDER BY b.name LIMIT ?",
+        f"ORDER BY {_AFFINITY_ORDER} LIMIT ?",
         (limit,),
     ).fetchall()
+
+
+def clear_drafts(conn: sqlite3.Connection, *, domain: str | None = None) -> int:
+    """Send brokers back to Stage 4 by deleting their angle and draft rows.
+
+    Without this, a broker whose long draft succeeded but whose short
+    condensation failed (`drafting.draft_for_broker`'s `short_written=False`
+    path) is stranded: `undrafted_brokers` excludes any broker with a `draft`
+    row at all, so no command can ever select that broker again, and a
+    newsletter-only broker is left with exactly the long-form artifact they
+    cannot use (spec §5: "A broker with only a newsletter receives the short
+    form as the primary deliverable").
+
+    With a domain, that broker's `angle` and `draft` rows are cleared
+    unconditionally -- whatever state they are in, deliberately re-spending
+    the angle and long-draft calls is an explicit operator action (spec
+    §11.5 treats retries as deliberate, never automatic).
+
+    With no domain, only *degraded* brokers are cleared: those with a long
+    draft but no matching short draft under the same angle. A fully-drafted
+    broker is left alone, so a bulk `bce redraft` cannot silently re-spend
+    calls on brokers that already succeeded.
+
+    Returns the number of brokers cleared (not the number of rows deleted),
+    mirroring `clear_qualification` / `clear_voice_profile`.
+    """
+    if domain is not None:
+        target = normalize_domain(domain) or domain.strip().lower()
+        broker = conn.execute(
+            "SELECT id FROM broker WHERE domain=?", (target,)
+        ).fetchone()
+        broker_ids = [broker["id"]] if broker is not None else []
+    else:
+        rows = conn.execute(
+            "SELECT DISTINCT a.broker_id FROM angle a "
+            "JOIN draft d ON d.angle_id = a.id AND d.format = 'long' "
+            "WHERE NOT EXISTS ("
+            "  SELECT 1 FROM draft d2 WHERE d2.angle_id = a.id AND d2.format = 'short'"
+            ")"
+        ).fetchall()
+        broker_ids = [r["broker_id"] for r in rows]
+
+    cleared = 0
+    for broker_id in broker_ids:
+        angle_ids = [
+            r["id"]
+            for r in conn.execute("SELECT id FROM angle WHERE broker_id=?", (broker_id,))
+        ]
+        if not angle_ids:
+            continue
+        placeholders = ",".join("?" * len(angle_ids))
+        conn.execute(f"DELETE FROM draft WHERE angle_id IN ({placeholders})", angle_ids)
+        conn.execute(f"DELETE FROM angle WHERE id IN ({placeholders})", angle_ids)
+        cleared += 1
+    conn.commit()
+    return cleared
 
 
 def clear_voice_profile(

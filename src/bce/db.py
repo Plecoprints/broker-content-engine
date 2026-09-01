@@ -25,6 +25,23 @@ ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
         "passes_originality": "INTEGER",
         "embedding": "TEXT",
     },
+    # Migrates a database created before the table was corrected to match
+    # spec §8 (F5): the original shape was
+    # `draft_asset(id, draft_id, asset_type, asset_url, metadata, created_at)`,
+    # which shares no column with the spec beyond `draft_id`, and silently
+    # dropped `usage_rights_confirmed` -- the column §10.7 requires ("Any
+    # image or video supplied to a broker must carry explicit permission for
+    # that broker to publish it"). `CREATE TABLE IF NOT EXISTS` is a no-op on
+    # a table that already exists in the old shape, so the three correct
+    # columns are added additively here; the old columns are left in place
+    # (harmless -- nothing reads or writes this table yet) rather than
+    # dropped, since SQLite has no simple `DROP COLUMN` this migration path
+    # can rely on.
+    "draft_asset": {
+        "asset_id": "TEXT",
+        "provider": "TEXT",
+        "usage_rights_confirmed": "INTEGER",
+    },
 }
 
 _SCHEMA = """
@@ -105,12 +122,10 @@ CREATE TABLE IF NOT EXISTS outcome (
 );
 
 CREATE TABLE IF NOT EXISTS draft_asset (
-    id                INTEGER PRIMARY KEY,
-    draft_id          INTEGER NOT NULL REFERENCES draft(id),
-    asset_type        TEXT,
-    asset_url         TEXT,
-    metadata          TEXT,
-    created_at        TEXT
+    draft_id                INTEGER NOT NULL REFERENCES draft(id),
+    asset_id                TEXT,
+    provider                TEXT,
+    usage_rights_confirmed  INTEGER
 );
 """
 

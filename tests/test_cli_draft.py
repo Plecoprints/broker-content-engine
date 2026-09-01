@@ -27,6 +27,7 @@ def _profile(conn, bid, register="warm professional"):
 
 
 def _drafted(conn, bid):
+    """A degraded draft: long draft written, short condensation never landed."""
     aid = conn.execute(
         "INSERT INTO angle (broker_id, title) VALUES (?, 'T')", (bid,)
     ).lastrowid
@@ -34,6 +35,22 @@ def _drafted(conn, bid):
         "INSERT INTO draft (angle_id, body_md, format) VALUES (?, 'body', 'long')", (aid,)
     )
     conn.commit()
+    return aid
+
+
+def _drafted_complete(conn, bid):
+    """A fully-drafted broker: both long and short rows under one angle."""
+    aid = conn.execute(
+        "INSERT INTO angle (broker_id, title) VALUES (?, 'T')", (bid,)
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO draft (angle_id, body_md, format) VALUES (?, 'body', 'long')", (aid,)
+    )
+    conn.execute(
+        "INSERT INTO draft (angle_id, body_md, format) VALUES (?, 'blurb', 'short')", (aid,)
+    )
+    conn.commit()
+    return aid
 
 
 # --- discover.undrafted_brokers ---------------------------------------------
@@ -70,6 +87,165 @@ def test_undrafted_brokers_negative_limit_is_unbounded_in_sqlite(tmp_path):
         bid = _broker(conn, f"b{i}.invalid")
         _profile(conn, bid)
     assert len(discover.undrafted_brokers(conn, -1)) == 12
+
+
+# --- F4: undrafted_brokers must not select a broker pulled from the working
+# --- set (qualified reset to NULL) even though its profile row survives ----
+
+
+def test_undrafted_brokers_excludes_a_disqualified_broker(tmp_path):
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    a = _broker(conn, "a.invalid")
+    _profile(conn, a)
+    # requalify clears `qualified` but leaves voice_profile intact (I5).
+    conn.execute("UPDATE broker SET qualified=NULL WHERE id=?", (a,))
+    conn.commit()
+
+    assert discover.undrafted_brokers(conn, 10) == []
+
+
+# --- F3: undrafted_brokers orders warmest-first (spec §4), same as
+# --- unprofiled_brokers, not alphabetically -------------------------------
+
+
+def test_undrafted_brokers_orders_warmest_first(tmp_path):
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    # Alphabetically "Alpha" < "Zulu", but affinity must win: lists_inventory
+    # before mentions before unknown/none, regardless of name.
+    alpha = _broker(conn, "alpha.invalid", "Alpha")
+    zulu = _broker(conn, "zulu.invalid", "Zulu")
+    _profile(conn, alpha)
+    _profile(conn, zulu)
+    conn.execute("UPDATE broker SET sunreef_affinity='none' WHERE id=?", (alpha,))
+    conn.execute("UPDATE broker SET sunreef_affinity='lists_inventory' WHERE id=?", (zulu,))
+    conn.commit()
+
+    domains = [r["domain"] for r in discover.undrafted_brokers(conn, 10)]
+    assert domains == ["zulu.invalid", "alpha.invalid"]
+
+
+def test_undrafted_brokers_still_returns_every_eligible_broker_regardless_of_affinity(
+    tmp_path,
+):
+    """Affinity is ordering-only (spec §2/§4): every eligible broker must
+    still come back, whatever its affinity, with no filter or threshold.
+    """
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    affinities = ["lists_inventory", "mentions", "unknown", "none"]
+    ids = []
+    for i, affinity in enumerate(affinities):
+        bid = _broker(conn, f"b{i}.invalid")
+        _profile(conn, bid)
+        conn.execute("UPDATE broker SET sunreef_affinity=? WHERE id=?", (affinity, bid))
+        ids.append(bid)
+    conn.commit()
+
+    domains = {r["domain"] for r in discover.undrafted_brokers(conn, 10)}
+    assert domains == {f"b{i}.invalid" for i in range(4)}
+
+
+# --- F1: clear_drafts / redraft ---------------------------------------------
+
+
+def test_clear_drafts_for_one_domain_clears_angle_and_draft_rows(tmp_path):
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    bid = _broker(conn, "a.invalid")
+    _profile(conn, bid)
+    _drafted(conn, bid)
+
+    assert discover.clear_drafts(conn, domain="https://www.a.invalid/") == 1
+    assert conn.execute("SELECT COUNT(*) AS c FROM angle").fetchone()["c"] == 0
+    assert conn.execute("SELECT COUNT(*) AS c FROM draft").fetchone()["c"] == 0
+    # the broker is selectable again -- voice_profile is untouched
+    assert [r["domain"] for r in discover.undrafted_brokers(conn, 10)] == ["a.invalid"]
+
+
+def test_clear_drafts_for_one_domain_clears_a_fully_drafted_broker_too(tmp_path):
+    """Explicit domain clears unconditionally, even a fully-succeeded draft --
+    a deliberate operator action, not something the bulk (no-domain) path
+    would ever do on its own (spec §11.5: retries are deliberate).
+    """
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    bid = _broker(conn, "a.invalid")
+    _profile(conn, bid)
+    _drafted_complete(conn, bid)
+
+    assert discover.clear_drafts(conn, domain="a.invalid") == 1
+    assert conn.execute("SELECT COUNT(*) AS c FROM draft").fetchone()["c"] == 0
+
+
+def test_clear_drafts_with_no_domain_clears_only_degraded_brokers(tmp_path):
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    degraded = _broker(conn, "degraded.invalid")
+    complete = _broker(conn, "complete.invalid")
+    _profile(conn, degraded)
+    _profile(conn, complete)
+    _drafted(conn, degraded)             # long only
+    _drafted_complete(conn, complete)    # long + short
+
+    assert discover.clear_drafts(conn) == 1
+    # the complete broker's two draft rows survive untouched
+    assert conn.execute("SELECT COUNT(*) AS c FROM draft").fetchone()["c"] == 2
+    undrafted = [r["domain"] for r in discover.undrafted_brokers(conn, 10)]
+    assert undrafted == ["degraded.invalid"]
+
+
+def test_clear_drafts_returns_zero_for_unknown_domain(tmp_path):
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    assert discover.clear_drafts(conn, domain="nope.invalid") == 0
+
+
+def test_redraft_one_domain(tmp_path, capsys):
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    bid = _broker(conn, "a.invalid")
+    _profile(conn, bid)
+    _drafted(conn, bid)
+
+    assert cli.cmd_redraft(path, "https://www.a.invalid/") == 0
+    assert "cleared 1" in capsys.readouterr().out
+    conn = db.connect(path)
+    assert [r["domain"] for r in discover.undrafted_brokers(conn, 10)] == ["a.invalid"]
+
+
+def test_redraft_all_degraded(tmp_path, capsys):
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    degraded = _broker(conn, "degraded.invalid")
+    complete = _broker(conn, "complete.invalid")
+    _profile(conn, degraded)
+    _profile(conn, complete)
+    _drafted(conn, degraded)
+    _drafted_complete(conn, complete)
+
+    assert cli.cmd_redraft(path) == 0
+    assert "cleared 1" in capsys.readouterr().out
+    conn = db.connect(path)
+    assert [r["domain"] for r in discover.undrafted_brokers(conn, 10)] == ["degraded.invalid"]
+
+
+def test_redraft_unknown_domain_returns_1(tmp_path, capsys):
+    path = _db(tmp_path)
+    assert cli.cmd_redraft(path, "nope.invalid") == 1
+    assert "no draft found" in capsys.readouterr().out
+
+
+def test_redraft_with_nothing_degraded_returns_0(tmp_path, capsys):
+    path = _db(tmp_path)
+    assert cli.cmd_redraft(path) == 0
+    assert "no degraded drafts" in capsys.readouterr().out
+
+
+def test_main_routes_redraft(tmp_path):
+    path = _db(tmp_path)
+    assert cli.main(["--db", path, "redraft"]) == 0
 
 
 # --- cli.cmd_draft: ceiling ---------------------------------------------------

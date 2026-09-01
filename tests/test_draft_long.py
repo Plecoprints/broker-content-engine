@@ -33,8 +33,11 @@ class FakeMessages:
             raise self.raises
         if self.stop_reason == "refusal":
             return type("R", (), {"content": [], "stop_reason": "refusal"})()
+        # A max_tokens cutoff still carries a (truncated) text block -- it is
+        # only the refusal case that ordinarily has none. Pass stop_reason
+        # through rather than hardcoding "end_turn" so tests can exercise it.
         block = type("B", (), {"type": "text", "text": self.text})()
-        return type("R", (), {"content": [block], "stop_reason": "end_turn"})()
+        return type("R", (), {"content": [block], "stop_reason": self.stop_reason})()
 
 
 class FakeClient:
@@ -110,4 +113,13 @@ def test_write_long_returns_none_on_api_error():
 
 def test_write_long_returns_none_on_refusal():
     fake = FakeClient(stop_reason="refusal")
+    assert DraftClient(client=fake).write_long(ANGLE, PROFILE, "Acme Yachts") is None
+
+
+def test_write_long_returns_none_on_max_tokens_truncation():
+    """F2: a stop_reason of 'max_tokens' must be treated as failure, not a
+    successful (but silently truncated) draft -- even though the response
+    still carries a text block, unlike a refusal.
+    """
+    fake = FakeClient(text="Choosing a catamaran means conf", stop_reason="max_tokens")
     assert DraftClient(client=fake).write_long(ANGLE, PROFILE, "Acme Yachts") is None

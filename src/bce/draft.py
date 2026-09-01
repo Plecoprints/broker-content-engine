@@ -3,8 +3,18 @@
 Two calls, sharing the failure contract of `bce.angles.AngleClient` and
 `bce.llm.ProfileClient`: the client is injectable and lazily constructed so no
 test needs an API key, and every failure -- `anthropic.APIError`, a safety
-refusal, or a response with no usable text -- degrades to `None`, never
-raises.
+refusal, a `max_tokens` truncation, or a response with no usable text --
+degrades to `None`, never raises.
+
+`max_tokens` truncation is treated as failure, not success, and this module is
+the one place that distinction actually matters. `ProfileClient` and
+`AngleClient` request structured JSON output; a truncated response there is
+simply unparseable JSON and already degrades to empty via the existing
+parse-failure path. `DraftClient` requests prose, so a response cut off mid-
+article is syntactically fine text -- indistinguishable from a deliberately
+short article unless `stop_reason` is checked explicitly. Persisting a
+truncated draft as `pending_review`, and then condensing the short form from
+that same truncated text, would ship two wrong rows from one silent failure.
 
 Unlike `angles.propose` / `llm.classify`, the payload here is prose (an
 article body, a newsletter blurb), not a value we persist as structured
@@ -61,7 +71,16 @@ _SHORT_SYSTEM = (
     "a separate piece -- keep the same angle, the same claims, and the same "
     "voice as that article. Do not introduce facts, figures, or claims that "
     "are not already in the long-form article, and match the register and "
-    "vocabulary described in the voice profile."
+    "vocabulary described in the voice profile.\n\n"
+    "If Sunreef appears in the long-form article as one example among "
+    "several, it must stay that way in the condensation -- never foreground "
+    "Sunreef as the subject of the blurb, and never let condensing turn a "
+    "passing example into something that reads as an advertisement for "
+    "Sunreef, even though every fact in the blurb was already in the "
+    "long-form article.\n\n"
+    "Never disparage or position against named competitors -- "
+    f"{', '.join(COMPETITORS)} are never named or argued against, regardless "
+    "of how relevant the comparison might seem."
 )
 
 
@@ -151,6 +170,12 @@ class DraftClient:
         # ordinarily no text content block -- see AngleClient.propose /
         # ProfileClient.classify for the same, explicitly-tested contract.
         if response.stop_reason == "refusal":
+            return None
+        # A max_tokens cutoff is also HTTP 200, but *with* a text block --
+        # just one truncated mid-thought. Unlike the JSON-schema clients,
+        # prose truncation is not self-evidently broken, so it must be
+        # checked explicitly rather than trusted as a successful draft (F2).
+        if response.stop_reason == "max_tokens":
             return None
         text = _extract_text(response)
         return text or None

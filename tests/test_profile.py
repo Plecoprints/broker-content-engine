@@ -352,7 +352,11 @@ def test_statistics_come_from_the_posts_not_the_journal_index():
     shape = json.loads(row["structure_pattern"])
     # With real paragraph extraction, we expect larger words_per_paragraph from posts
     assert shape["words_per_paragraph"] > 30  # posts have deeper paragraphs
-    assert shape["words_per_paragraph"] != index_shape["words_per_paragraph"]
+    # F8: a bare `!=` between two floats is satisfied by almost any pair and
+    # carries no real discriminating power (any rounding difference would
+    # pass). Assert the posts are *meaningfully* deeper than the index's
+    # teaser-card fragments, not merely different from them.
+    assert shape["words_per_paragraph"] > index_shape["words_per_paragraph"] * 2
     assert row["avg_sentence_len"] > 20  # long, subordinate-clause sentences
 
     # The index pages were fetched to find links, and the posts were fetched for

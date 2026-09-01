@@ -106,6 +106,19 @@ def test_propose_carries_the_voice_profile_in_the_prompt():
     assert "berth" in sent_text
 
 
+def test_propose_prompt_forbids_competitor_disparagement():
+    """F7: angles are persisted and shown to the operator regardless of
+    whether a draft is ever written, so the competitor ban (spec §2) must
+    reach the angle-proposal prompt too, not just draft.py's long/short
+    system prompts.
+    """
+    fake = FakeClient(VALID)
+    AngleClient(client=fake).propose(PROFILE, "Acme Yachts")
+    system = fake.messages.calls[0]["system"]
+    for competitor in ("Lagoon", "Fountaine Pajot", "Catana"):
+        assert competitor in system
+
+
 def test_propose_makes_no_api_call_for_empty_profile():
     fake = FakeClient(VALID)
     assert AngleClient(client=fake).propose({}, "Acme Yachts") == []
