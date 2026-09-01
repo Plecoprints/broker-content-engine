@@ -1,12 +1,12 @@
 """SQLite store — single source of truth for pipeline state (spec §7, §8)."""
 import sqlite3
 
-SCHEMA_TABLES = ("broker", "voice_profile", "angle", "draft", "outcome")
+SCHEMA_TABLES = ("broker", "voice_profile", "angle", "draft", "draft_asset", "outcome")
 
 #: Bumped whenever the shape below changes. Stored in `PRAGMA user_version` so
 #: an existing file can be recognised instead of silently keeping an old shape
 #: (`CREATE TABLE IF NOT EXISTS` never adds a column to a table that exists).
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 #: Columns added to already-created tables after their first release. Applied
 #: additively by `init_schema` via ALTER TABLE, in declaration order.
@@ -16,6 +16,14 @@ ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
         "has_newsletter": "INTEGER",
         "newsletter_evidence": "TEXT",
         "editorial_last_post": "TEXT",
+    },
+    "draft": {
+        "format": "TEXT CHECK (format IN ('long', 'short'))",
+        "passes_uniqueness": "INTEGER",
+        "max_similarity": "REAL",
+        "most_similar_draft_id": "INTEGER",
+        "passes_originality": "INTEGER",
+        "embedding": "TEXT",
     },
 }
 
@@ -77,7 +85,13 @@ CREATE TABLE IF NOT EXISTS draft (
                                          'rejected', 'sent', 'published', 'declined')),
     reviewed_by                   TEXT,
     reviewed_at                   TEXT,
-    reviewer_edits                TEXT
+    reviewer_edits                TEXT,
+    format                        TEXT CHECK (format IN ('long', 'short')),
+    passes_uniqueness             INTEGER,
+    max_similarity                REAL,
+    most_similar_draft_id         INTEGER,
+    passes_originality            INTEGER,
+    embedding                     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS outcome (
@@ -88,6 +102,15 @@ CREATE TABLE IF NOT EXISTS outcome (
     utm_campaign      TEXT,
     referral_sessions INTEGER,
     inquiries         INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS draft_asset (
+    id                INTEGER PRIMARY KEY,
+    draft_id          INTEGER NOT NULL REFERENCES draft(id),
+    asset_type        TEXT,
+    asset_url         TEXT,
+    metadata          TEXT,
+    created_at        TEXT
 );
 """
 
