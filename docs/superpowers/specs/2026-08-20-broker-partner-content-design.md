@@ -122,6 +122,76 @@ The short form is a condensation of the long form, not a separate piece: same an
 
 **Stage 7 — Measure.** UTM-tagged links, referral traffic by broker, engagement, inquiries attributed to broker referral.
 
+## 5b. Keyword targeting (Semrush)
+
+Every draft is built around keywords the broker can realistically **win**, and both the operator and the
+broker can see exactly which ones and why.
+
+### Qualifying thresholds
+
+A keyword may be baked into a draft only if:
+
+- **Keyword difficulty < 30**, and
+- **Average monthly search volume > 100**
+
+Measured against real Semrush data for this niche, roughly **a third of candidate terms clear both bars**.
+The bar bites hardest at the top: every high-volume head term tested — `sailing catamaran` (3,600, KD 41),
+`luxury yacht charter` (8,100, KD 60), `yacht broker` (5,400, KD 78) — fails on difficulty. That is the
+point. A partner broker does not have Sunreef's domain authority, so an article aimed at those terms is an
+article that never ranks. The filter trades reach for winnability deliberately.
+
+Both thresholds are **named constants, not literals**, and both are displayed in the UI so a broker
+understands the standard their content is held to rather than taking it on faith.
+
+### Keywords per format
+
+Keyword load scales with length — roughly **one keyword per 500 words**. Four keywords in a 150-word
+newsletter blurb is keyword stuffing, and it reads like it.
+
+| Format | Primary | Secondary |
+|---|---|---|
+| **Long** (2000–2300 words) | 1 | up to 4 |
+| **Medium** (their typical length) | 1 | up to 2 |
+| **Short** (100–200 words) | 1 | 0 |
+
+Because medium and short are condensations of the long draft (§5 Stage 4), their keywords are a **subset**
+of the long draft's. A keyword appearing in the short version but not the long one would mean the
+condensation introduced a claim the pillar never made.
+
+### Provenance and staleness
+
+Keyword metrics are a **snapshot, not a live reading**. `power catamaran` at KD 28 today can be KD 32 next
+quarter, which would place a published article on the wrong side of the threshold retroactively. So every
+keyword stores `measured_at` and the `database` it was measured against, and every UI surface shows the
+measurement date beside the figure. The system never presents a cached number as though it were current.
+
+`database` defaults to `us`. Volume differs substantially by region, so this is a real knob for
+EU- and Caribbean-facing brokers, not a formality.
+
+### Where the data comes from
+
+The engine reads keywords from the `keyword` table. **How that table is filled is pluggable**, which
+matters because of a constraint worth stating plainly: the Semrush connection available today is an **MCP
+server bound to an interactive Claude session** — the headless `bce` pipeline cannot call it. Live
+autonomous lookups would require Semrush's Standard API and its own key and entitlement, which is a
+separate commercial question.
+
+So the seam at `AngleClient(keyword_source=...)` is filled in two stages:
+
+1. **Now — banked.** Keyword research is run interactively and loaded into the `keyword` table. This works
+   today with no new entitlement, and it is not a meaningful compromise: keyword economics for a niche this
+   narrow move on a quarterly timescale, not a weekly one, and the bank costs nothing per draft.
+2. **Later — live.** A `SemrushClient` implementing the same interface, if and when API access exists.
+
+Nothing downstream knows which one it is talking to.
+
+### When nothing qualifies
+
+If no banked keyword clears both thresholds for an angle, the system **does not relax the thresholds and
+does not invent a keyword**. The draft is still written, the keyword box says plainly that no qualifying
+keyword was found, and the operator sees it at review. Silently lowering the bar would make the box a
+decoration — the number is only worth showing if it is allowed to say no.
+
 ## 6. Volume ceiling
 
 **Hard cap: 50 brokers. Default working set: 20.**
@@ -183,6 +253,11 @@ voice_profile(broker_id, register, avg_sentence_len, typical_word_count,
 angle(id, broker_id, title, premise, audience_value, sunreef_relevance,
       score, rejected_reason)
 
+keyword(id, phrase, volume, difficulty, intent, database, measured_at,
+        qualifies, source)
+
+draft_keyword(draft_id, keyword_id, role)
+
 draft(id, angle_id, format, body_md, word_count, sunreef_mentions,
       passes_editorial_value_test, passes_uniqueness, max_similarity,
       most_similar_draft_id, passes_originality, embedding,
@@ -200,6 +275,8 @@ outcome(draft_id, sent_at, response, published_url, utm_campaign,
 `draft.format` ∈ `long | medium | short` — see §5 Stage 4. Uniqueness comparison is scoped **within format**, so three buckets: a pillar piece is never compared against a newsletter blurb, and an article never flags as a duplicate of its own summary.
 `draft.status` ∈ `pending_review | approved | rejected | sent | published | declined`.
 Nothing reaches `sent` without a human in `reviewed_by`.
+`keyword.qualifies` is **stored, not computed at read time** — it records whether the keyword met the §5b thresholds *at `measured_at`*, so a draft can always explain why a keyword was chosen even after the metrics drift.
+`draft_keyword.role` ∈ `primary | secondary`. Exactly one `primary` per draft.
 
 ## 9. Operator UI
 
@@ -217,6 +294,12 @@ A review gate with no surface to operate it is a gate nobody walks through. This
 | **Review queue** | *The core screen.* Draft beside its voice profile and angle rationale. Inline edit. Approve / reject / request-new-angle. Records reviewer identity and edits. Ordered by affinity |
 | **Outreach** | Approved drafts with copy-ready message. Mark as sent |
 | **Outcomes** | Published URLs, UTM campaign, referral sessions, inquiries |
+
+**Keyword panel.** Every draft shown to the operator carries a keyword box: the primary and secondary
+keywords baked in, each with its difficulty, average monthly volume, and measurement date (§5b). The
+operator sees this at review so a weak keyword can be caught *before* the draft reaches a broker. The same
+component renders in the broker portal (§9b) against the same data — it is written once, and the broker
+sees exactly what we saw.
 
 **Constraints:**
 - Localhost only, no auth in v1 — single operator on one machine. Auth is required before this is exposed to anyone else.
