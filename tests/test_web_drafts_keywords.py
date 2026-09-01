@@ -102,7 +102,18 @@ def test_keyword_panel_degrades_honestly_when_no_keywords_baked_in(tmp_path):
     client = TestClient(create_app(path))
     body = client.get(f"/broker/{bid}/drafts").text
 
-    assert "no qualifying keyword" in body.lower()
+    # Says plainly that nothing met the bar, and that the bar was not lowered
+    # to fill the box.
+    assert "no keyword met the standard" in body.lower()
+    assert "the draft was still written" in body.lower()
+
+    # Scoped to the panel itself, not the whole page: this exact partial
+    # renders in the broker portal (§9b), where an internal spec reference is
+    # noise to the reader. The surrounding admin-only viewer may cite the
+    # spec freely, so a page-wide assertion here would be wrong.
+    start = body.index('<div class="keyword-panel">')
+    panel = body[start:body.index("</div>", body.index("empty-state", start))]
+    assert "&sect;" not in panel and "§" not in panel and "spec" not in panel.lower()
 
 
 def test_keyword_panel_never_leaks_a_literal_none(tmp_path):

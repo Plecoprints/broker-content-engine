@@ -747,15 +747,62 @@ def _insert_angle(conn: sqlite3.Connection, broker_id: int, angle: dict) -> int:
     return cursor.lastrowid
 
 
-def _insert_draft(conn: sqlite3.Connection, angle_id: int, body: str, fmt: str) -> None:
+def _insert_draft(conn: sqlite3.Connection, angle_id: int, body: str, fmt: str) -> int:
     # Mirrors `drafting.draft_for_broker`: status is always 'pending_review'
     # — nothing here has been through §10.3's originality gates or §3's
     # editorial value test, and no seed row ever carries a human reviewer.
-    conn.execute(
+    cursor = conn.execute(
         "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
         "VALUES (?,?,?,?,?)",
         (angle_id, body, len(body.split()), "pending_review", fmt),
     )
+    return cursor.lastrowid
+
+
+# Real Semrush figures from the operator's own export
+# (data/semrush-us-2026-09-01.csv, US database, measured 2026-09-01). Seeded
+# so the draft viewer shows a populated keyword panel without spending an API
+# call — invented metrics would defeat the point of a panel whose whole job is
+# to show the operator, and later the broker, real numbers.
+_SEED_KEYWORDS: tuple[tuple[str, int, int], ...] = (
+    ("how much does a catamaran cost", 260, 16),
+    ("catamaran cost", 320, 20),
+    ("catamaran insurance", 390, 7),
+    ("how to finance a catamaran", 260, 3),
+    ("luxury catamaran", 720, 29),
+)
+
+# Which keywords each format carries, per spec §5b: one primary plus a
+# secondary allowance that scales with length (long 4, medium 2, short 0).
+# Medium and short are condensations of the long draft, so their keywords are
+# a strict prefix of the long draft's — a keyword in the newsletter that the
+# pillar never carried would mean the condensation invented one.
+_SEED_DRAFT_KEYWORDS: dict[str, int] = {"long": 5, "medium": 3, "short": 1}
+
+
+def _insert_seed_keywords(conn: sqlite3.Connection) -> list[int]:
+    ids = []
+    for phrase, volume, difficulty in _SEED_KEYWORDS:
+        cursor = conn.execute(
+            "INSERT INTO keyword (phrase, volume, difficulty, database, "
+            "measured_at, qualifies, source, competitor_brand, "
+            "segment_relevant, intent_labels, editorial) "
+            "VALUES (?,?,?,'us','2026-09-01',1,'semrush',0,1,?,1)",
+            (phrase, volume, difficulty, "Informational"),
+        )
+        ids.append(cursor.lastrowid)
+    return ids
+
+
+def _attach_keywords(conn: sqlite3.Connection, draft_id: int, fmt: str,
+                     keyword_ids: list[int]) -> None:
+    take = _SEED_DRAFT_KEYWORDS.get(fmt, 0)
+    for position, keyword_id in enumerate(keyword_ids[:take]):
+        conn.execute(
+            "INSERT INTO draft_keyword (draft_id, keyword_id, role) "
+            "VALUES (?,?,?)",
+            (draft_id, keyword_id, "primary" if position == 0 else "secondary"),
+        )
 
 
 def seed_example(conn: sqlite3.Connection) -> int:
@@ -773,6 +820,7 @@ def seed_example(conn: sqlite3.Connection) -> int:
         return 0
 
     inserted = 0
+    keyword_ids = _insert_seed_keywords(conn)
     for row in _BROKERS:
         broker_id = _insert_broker(conn, row)
         inserted += 1
@@ -783,11 +831,15 @@ def seed_example(conn: sqlite3.Connection) -> int:
         if angle is not None:
             angle_id = _insert_angle(conn, broker_id, angle)
             drafts = _DRAFTS.get(row["domain"], {})
-            if "long" in drafts:
-                _insert_draft(conn, angle_id, drafts["long"], "long")
-            if "medium" in drafts:
-                _insert_draft(conn, angle_id, drafts["medium"], "medium")
-            if "short" in drafts:
-                _insert_draft(conn, angle_id, drafts["short"], "short")
+            for fmt in ("long", "medium", "short"):
+                if fmt not in drafts:
+                    continue
+                draft_id = _insert_draft(conn, angle_id, drafts[fmt], fmt)
+                # Only the fully-profiled broker carries keywords. The
+                # degraded one is left without deliberately, so the viewer
+                # demonstrates both a populated panel and the honest
+                # "nothing met the standard" state side by side.
+                if row["domain"] == _MARKER_DOMAIN:
+                    _attach_keywords(conn, draft_id, fmt, keyword_ids)
     conn.commit()
     return inserted
