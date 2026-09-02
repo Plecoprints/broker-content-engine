@@ -36,12 +36,47 @@ def _conn():
     return c
 
 
-def _broker(conn, domain="fp.invalid"):
+def _bare_broker(conn, domain="fp.invalid"):
+    """A broker row with no fingerprints -- a state production cannot reach.
+    Only for the test that asserts the Original gate fails closed on it."""
     conn.execute(
         "INSERT INTO broker (name, domain, source) VALUES ('T', ?, 'manual')",
         (domain,),
     )
     return conn.execute("SELECT id FROM broker WHERE domain=?", (domain,)).fetchone()["id"]
+
+
+def _broker(conn, domain="fp.invalid"):
+    bid = _bare_broker(conn, domain)
+    _persist_fixture_fingerprints(conn, bid)
+    return bid
+
+#: A profiled broker always has source fingerprints: `profile.profile_broker`
+#: refuses to write a profile below `MIN_CORPUS_CHARS` and persists
+#: fingerprints unconditionally once a corpus exists, before the classify()
+#: call. Fixtures that write a voice_profile by hand must do the same, or they
+#: build a state production cannot reach -- and since `check_original` now
+#: fails closed when fingerprints are missing (§10.9), such a fixture would
+#: fail the Original gate for a reason that has nothing to do with the test.
+#: Text chosen to share no 6-word shingle with any draft body in this suite,
+#: so containment is ~0 and the gate passes on the merits.
+_FIXTURE_SOURCE_TEXT = (
+    "Antique cartography of the Baltic littoral remains poorly catalogued "
+    "in municipal archives despite repeated funding appeals. "
+) * 4
+
+
+def _persist_fixture_fingerprints(conn, broker_id):
+    from bce.fingerprint import shingle_hashes
+
+    for h in shingle_hashes(_FIXTURE_SOURCE_TEXT):
+        conn.execute(
+            "INSERT OR IGNORE INTO source_fingerprint (broker_id, shingle_hash) "
+            "VALUES (?, ?)",
+            (broker_id, h),
+        )
+    conn.commit()
+
 
 
 def _insert_draft(conn, *, format="long", embedding=None, angle_id=None) -> int:
@@ -213,11 +248,34 @@ def test_tailored_blocking_formats_are_medium_and_short_only():
 # --- Gate 3: Original (vs. broker's own published prose) -------------------
 
 
-def test_original_passes_when_broker_has_no_fingerprints_yet():
+def test_original_fails_closed_when_broker_has_no_fingerprints():
+    """Reversed 2026-09-02 (§10.9: every gate fails closed). Previously this
+    asserted `passes is True`, which was the one place that claim was not
+    literally true.
+
+    Failing closed cannot block a legitimate broker: `profile.profile_broker`
+    will not write a profile below MIN_CORPUS_CHARS and persists fingerprints
+    unconditionally once a corpus exists, and `drafting` refuses to draft
+    without a register. So a broker reaching this gate with no fingerprints
+    is a broken invariant -- lost rows, a hand-built row, or a future path
+    that writes a profile without a corpus -- not a broker who published
+    nothing. That is exactly the unverifiable state a blocking gate must not
+    wave through.
+    """
+    conn = _conn()
+    bid = _bare_broker(conn)
+    result = originality.check_original(conn, bid, "a fresh draft body with several words")
+    assert result["passes"] is False
+    assert result["containment"] is None, "None still means 'could not compare', not 0.0"
+
+
+def test_original_fails_closed_on_a_draft_too_short_to_shingle():
+    """The other not-comparable path. A body under SHINGLE_SIZE words is not
+    a draft, and the gate is a cheaper place to say so than a reviewer."""
     conn = _conn()
     bid = _broker(conn)
-    result = originality.check_original(conn, bid, "a fresh draft body with several words")
-    assert result["passes"] is True
+    result = originality.check_original(conn, bid, "three short words")
+    assert result["passes"] is False
     assert result["containment"] is None
 
 
@@ -287,7 +345,12 @@ def test_original_is_scoped_to_this_broker_only():
 
     result = originality.check_original(conn, this_bid, text)
     assert result["passes"] is True
-    assert result["containment"] is None
+    # 0.0, not None: `this_bid` has its own fingerprints (as every profiled
+    # broker does), so the comparison genuinely ran and found no overlap with
+    # *their* prose. Asserting None here would have meant the gate never
+    # compared at all, which since 2026-09-02 is a fail, not a pass -- so
+    # this is now the stronger assertion of the two.
+    assert result["containment"] == 0.0
 
 
 def test_originality_max_containment_constant_documented_as_first_estimate():

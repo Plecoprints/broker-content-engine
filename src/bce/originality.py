@@ -220,11 +220,33 @@ def check_original(conn, broker_id: int, body: str) -> dict:
     `bce.fingerprint` for why hashes, not text, are stored and compared.
 
     Returns ``{"passes": bool, "containment": float | None}``.
-    `containment` is `None` (not 0.0) when there was nothing to compare --
-    an empty draft, or a broker with no `source_fingerprint` rows yet (never
-    profiled, or profiled before this gate existed) -- distinguishing
-    "compared and found no overlap" from "could not compare at all", the
-    same distinction Gate 1 makes for a first-of-its-format draft.
+    `containment` is `None` (not 0.0) when there was nothing to compare,
+    distinguishing "compared and found no overlap" from "could not compare
+    at all" -- the same distinction Gate 1 makes for a first-of-its-format
+    draft.
+
+    **Both not-comparable cases fail, not pass** (§10.9: every gate fails
+    closed; §10.3: "unverifiable is not the same as clean"). This reverses
+    the original behaviour, which returned `passes=True` for both and was
+    the one place §10.9's claim was not literally true.
+
+    Neither case can block a legitimate broker, which is what makes failing
+    closed safe here rather than merely strict:
+
+    * **No source fingerprints.** `profile.py` refuses to write a profile at
+      all below `MIN_CORPUS_CHARS`, and persists fingerprints
+      *unconditionally* once a corpus exists -- before the `classify()` call,
+      so even a failed API call leaves them. Drafting then refuses when
+      `register` is NULL (`drafting.py`). So a broker reaching this gate has
+      a profile, a profile implies a corpus, and a corpus implies
+      fingerprints. "None found" is therefore never "this broker published
+      nothing" -- it is a broken invariant: rows lost, a hand-built row, or a
+      future code path that writes a profile without a corpus. That is
+      precisely the unverifiable state a blocking gate must not wave through.
+    * **No draft shingles.** The body is shorter than `SHINGLE_SIZE` words.
+      A five-word draft is not a draft; nothing downstream should treat one
+      as publishable, and the gate is a cheaper place to say so than a
+      reviewer.
 
     Scoped to `broker_id` alone, unlike Gate 1: the question is "did we hand
     *this* broker back *their own* words", which only their own fingerprints
@@ -233,7 +255,7 @@ def check_original(conn, broker_id: int, body: str) -> dict:
     """
     draft_hashes = shingle_hashes(body)
     if not draft_hashes:
-        return {"passes": True, "containment": None}
+        return {"passes": False, "containment": None}
 
     rows = conn.execute(
         "SELECT shingle_hash FROM source_fingerprint WHERE broker_id=?",
@@ -241,7 +263,7 @@ def check_original(conn, broker_id: int, body: str) -> dict:
     ).fetchall()
     source_hashes = {row["shingle_hash"] for row in rows}
     if not source_hashes:
-        return {"passes": True, "containment": None}
+        return {"passes": False, "containment": None}
 
     overlap = _shingle_containment(draft_hashes, source_hashes)
     return {"passes": overlap <= ORIGINALITY_MAX_CONTAINMENT, "containment": overlap}

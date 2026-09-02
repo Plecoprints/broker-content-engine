@@ -58,6 +58,7 @@ def _drafted(tmp_path, embedder=None):
         ),
     )
     conn.commit()
+    _persist_fixture_fingerprints(conn, bid)
     drafting.draft_for_broker(
         conn, bid, _Angles(), _Drafts(), embedder or _Embedder()
     )
@@ -180,6 +181,7 @@ def test_the_panel_shows_the_offending_claim_when_gate_four_fails(tmp_path):
         ),
     )
     conn.commit()
+    _persist_fixture_fingerprints(conn, bid)
     drafting.draft_for_broker(conn, bid, _Angles(), _DraftsWithAProductClaim(), _Embedder())
     conn.commit()
     conn.close()
@@ -192,3 +194,29 @@ def test_the_panel_shows_the_offending_claim_when_gate_four_fails(tmp_path):
     assert "specification" in body
     # And the panel still never leaks a repr.
     assert "None" not in body
+
+
+#: Every profiled broker has source fingerprints in production:
+#: `profile.profile_broker` refuses to write a profile below
+#: MIN_CORPUS_CHARS and persists fingerprints unconditionally once a corpus
+#: exists. A fixture that writes a voice_profile without them builds a state
+#: production cannot reach, and since `check_original` fails closed on
+#: missing fingerprints (§10.9) it would fail the Original gate for a reason
+#: unrelated to the test. Text shares no 6-word shingle with any draft body
+#: here, so containment is ~0.
+_FIXTURE_SOURCE_TEXT = (
+    "Antique cartography of the Baltic littoral remains poorly catalogued "
+    "in municipal archives despite repeated funding appeals. "
+) * 4
+
+
+def _persist_fixture_fingerprints(conn, broker_id):
+    from bce.fingerprint import shingle_hashes
+
+    for h in shingle_hashes(_FIXTURE_SOURCE_TEXT):
+        conn.execute(
+            "INSERT OR IGNORE INTO source_fingerprint (broker_id, shingle_hash) "
+            "VALUES (?, ?)",
+            (broker_id, h),
+        )
+    conn.commit()

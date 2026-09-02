@@ -95,7 +95,11 @@
                 {{ "%.3f"|format(draft["originality_overlap"]) }} overlap with
                 this broker&rsquo;s own published writing
               {% else %}
-                <span class="muted">No fingerprints stored for this broker yet.</span>
+                <span class="muted">Could not be checked &mdash; either no fingerprints
+                are stored for this broker, or the draft was too short to compare.
+                Unverified is not treated as clean, so this is a fail. A profiled broker
+                always has fingerprints, so their absence means something is wrong with
+                the profile rather than with the draft.</span>
               {% endif %}
             </td>
           </tr>

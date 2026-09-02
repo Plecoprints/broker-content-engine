@@ -103,7 +103,8 @@ def _broker(conn, domain="acme.invalid", name="Acme"):
 def _profiled_broker(conn, *, register="warm professional", **overrides):
     """A broker with a voice_profile row stored exactly as `profile_broker`
     would store it -- the four structured columns as JSON *strings*, since
-    that is the real on-disk shape this orchestrator must deserialize.
+    that is the real on-disk shape this orchestrator must deserialize, and
+    source fingerprints, which `profile_broker` also always writes.
     """
     bid = _broker(conn)
     values = {
@@ -136,7 +137,34 @@ def _profiled_broker(conn, *, register="warm professional", **overrides):
         ),
     )
     conn.commit()
+    _persist_fixture_fingerprints(conn, bid)
     return bid
+
+#: Every profiled broker has source fingerprints in production:
+#: `profile.profile_broker` refuses to write a profile below
+#: MIN_CORPUS_CHARS and persists fingerprints unconditionally once a corpus
+#: exists. A fixture that writes a voice_profile without them builds a state
+#: production cannot reach, and since `check_original` fails closed on
+#: missing fingerprints (§10.9) it would fail the Original gate for a reason
+#: unrelated to the test. Text shares no 6-word shingle with any draft body
+#: here, so containment is ~0.
+_FIXTURE_SOURCE_TEXT = (
+    "Antique cartography of the Baltic littoral remains poorly catalogued "
+    "in municipal archives despite repeated funding appeals. "
+) * 4
+
+
+def _persist_fixture_fingerprints(conn, broker_id):
+    from bce.fingerprint import shingle_hashes
+
+    for h in shingle_hashes(_FIXTURE_SOURCE_TEXT):
+        conn.execute(
+            "INSERT OR IGNORE INTO source_fingerprint (broker_id, shingle_hash) "
+            "VALUES (?, ?)",
+            (broker_id, h),
+        )
+    conn.commit()
+
 
 
 def _conn():
@@ -282,7 +310,7 @@ def test_none_medium_draft_still_keeps_the_good_long_and_short_drafts():
     bid = _profiled_broker(conn)
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient(
-        long_body="A full article body.", medium_body=None, short_body="Short blurb."
+        long_body="A full article body with enough words to shingle properly.", medium_body=None, short_body="Short blurb."
     )
 
     result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
@@ -300,7 +328,7 @@ def test_none_short_draft_still_keeps_the_good_long_and_medium_drafts():
     bid = _profiled_broker(conn)
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient(
-        long_body="A full article body.", medium_body="A regular post.", short_body=None
+        long_body="A full article body with enough words to shingle properly.", medium_body="A regular post.", short_body=None
     )
 
     result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
@@ -312,7 +340,7 @@ def test_none_short_draft_still_keeps_the_good_long_and_medium_drafts():
     formats = {r["format"] for r in rows}
     assert formats == {"long", "medium"}
     long_row = next(r for r in rows if r["format"] == "long")
-    assert long_row["body_md"] == "A full article body."
+    assert long_row["body_md"] == "A full article body with enough words to shingle properly."
     assert long_row["status"] == "pending_review"
 
 
@@ -324,7 +352,7 @@ def test_none_medium_and_none_short_still_keeps_the_good_long_draft():
     bid = _profiled_broker(conn)
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient(
-        long_body="A full article body.", medium_body=None, short_body=None
+        long_body="A full article body with enough words to shingle properly.", medium_body=None, short_body=None
     )
 
     result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
@@ -335,7 +363,7 @@ def test_none_medium_and_none_short_still_keeps_the_good_long_draft():
     rows = conn.execute("SELECT * FROM draft").fetchall()
     assert len(rows) == 1
     assert rows[0]["format"] == "long"
-    assert rows[0]["body_md"] == "A full article body."
+    assert rows[0]["body_md"] == "A full article body with enough words to shingle properly."
     assert rows[0]["status"] == "pending_review"
 
 
