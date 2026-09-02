@@ -10,7 +10,7 @@ import sqlite3
 
 from bce import db, keywords
 
-DATA_CSV = "data/keyword_bank.csv"
+DATA_CSV = "data/keyword_bank.sample.csv"
 
 
 def _conn():

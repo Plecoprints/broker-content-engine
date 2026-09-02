@@ -5,7 +5,7 @@ an exception or a silent zero-row import.
 """
 from bce import cli, db
 
-DATA_CSV = "data/keyword_bank.csv"
+DATA_CSV = "data/keyword_bank.sample.csv"
 FIXTURES = "tests/fixtures/keyword_exports"
 
 

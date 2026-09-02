@@ -120,6 +120,31 @@ def cmd_keywords(db_path: str, csv_path: str) -> int:
     return 0
 
 
+def cmd_exclusions(db_path: str, csv_path: str) -> int:
+    """Load the operator's excluded-keyword bank into `excluded_keyword`.
+
+    Mirrors `cmd_keywords`' error handling: a missing file or an unusable
+    header is refused (rc=1), never a silent zero-row import. Every phrase
+    loaded here is permanently unselectable (spec §5b), so the count is
+    reported back for the operator to check against the file they exported --
+    a blocklist that silently imported half its rows would be worse than none.
+    """
+    conn = db.connect(db_path)
+    db.init_schema(conn)
+    try:
+        result = keywords.load_exclusions(conn, csv_path)
+    except FileNotFoundError:
+        print(f"error: CSV file not found: {csv_path}")
+        return 1
+    except keywords.NoPhraseColumnError as exc:
+        print(f"error: {exc}")
+        return 1
+    print(f"{result.imported} excluded keywords loaded; never selectable")
+    for reason in result.skipped:
+        print(f"  skipped: {reason}")
+    return 0
+
+
 def cmd_qualify(db_path: str, limit: int = DEFAULT_QUALIFY_LIMIT) -> int:
     conn = db.connect(db_path)
     # Upgrade an older file before reading columns it may not have yet (I2):
@@ -342,6 +367,8 @@ def main(argv: list[str] | None = None) -> int:
     p_import.add_argument("csv")
     p_keywords = sub.add_parser("keywords")
     p_keywords.add_argument("csv")
+    p_exclusions = sub.add_parser("exclusions")
+    p_exclusions.add_argument("csv")
     p_qualify = sub.add_parser("qualify")
     p_qualify.add_argument("--limit", type=int, default=DEFAULT_QUALIFY_LIMIT)
     p_requalify = sub.add_parser("requalify")
@@ -377,6 +404,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_import(args.db, args.csv)
     if args.command == "keywords":
         return cmd_keywords(args.db, args.csv)
+    if args.command == "exclusions":
+        return cmd_exclusions(args.db, args.csv)
     if args.command == "qualify":
         return cmd_qualify(args.db, args.limit)
     if args.command == "requalify":

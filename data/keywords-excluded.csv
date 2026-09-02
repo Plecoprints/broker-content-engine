@@ -1,0 +1,96 @@
+keyword,monthly_volume,difficulty,excluded_because
+catamaran club,1000,20,off segment: other_brand
+small catamaran,880,26,off segment: wrong_size_class
+beach catamaran,720,23,off segment: wrong_size_class
+catamaran park,720,10,off segment: other_brand
+sunset catamaran cruise,590,15,off segment: excursion_tourism
+catamaran sunset cruise,480,28,off segment: excursion_tourism
+family catamaran vacations,480,15,off segment: excursion_tourism
+makani catamaran sail,480,29,off segment: other_brand
+small catamaran boat,480,14,off segment: wrong_size_class
+solar powered catamaran,480,21,not editorial intent (transactional/navigational)
+whats a catamaran,480,21,off segment: non_english
+catamaran cruise caribbean,390,14,off segment: excursion_tourism
+racing catamaran,390,24,off segment: racing
+small catamaran power boats,390,8,off segment: wrong_size_class
+blow up catamaran,320,4,off segment: wrong_size_class
+catamaran paddle board,320,0,off segment: wrong_size_class
+catamaran small,320,25,off segment: wrong_size_class
+catamaran tours punta cana,320,19,off segment: excursion_tourism
+small catamaran sailboat,320,20,off segment: wrong_size_class
+small sailing catamaran,320,17,off segment: wrong_size_class
+smallest catamaran,320,18,off segment: wrong_size_class
+2 person catamaran,260,12,off segment: wrong_size_class
+catamara,260,29,off segment: non_english
+catamaran isla mujeres,260,22,off segment: excursion_tourism
+catamaran race boat,260,21,off segment: racing
+catamaran stripe light blue-ivory area rug,260,6,off segment: not_a_boat
+glacier bay catamaran,260,10,off segment: other_brand
+santorini catamaran oia,260,22,off segment: excursion_tourism
+2 man catamaran,210,3,off segment: wrong_size_class
+camphor hull,210,26,off segment: not_a_boat
+catamaran images pictures,210,24,off segment: not_a_boat
+catamaran luau,210,27,off segment: excursion_tourism
+keep balance on a ship,210,11,off segment: not_a_boat
+small catamaran boats,210,20,off segment: wrong_size_class
+the catamaran club,210,18,off segment: other_brand
+catamaran belize,170,11,off segment: excursion_tourism
+catamaran boat small,170,11,off segment: wrong_size_class
+catamaran cruise miami,170,12,off segment: excursion_tourism
+catamaran excursion,170,23,off segment: excursion_tourism
+catamaran flotilla holidays greece,170,7,off segment: excursion_tourism
+catamaran font,170,20,off segment: not_a_boat
+catamaran holidays in croatia,170,9,off segment: excursion_tourism
+catamaran riviera maya,170,15,off segment: excursion_tourism
+catamaran tours caribbean,170,8,off segment: excursion_tourism
+f50 catamaran,170,26,off segment: racing
+font catamaran,170,24,off segment: not_a_boat
+small catamaran motor boat,170,16,off segment: wrong_size_class
+a class catamaran,140,21,off segment: racing
+cancun catamaran to isla mujeres,140,17,off segment: excursion_tourism
+caribbean catamaran cruises,140,17,off segment: excursion_tourism
+catamaran barefoot iv,140,22,off segment: other_brand
+catamaran culebra pr,140,9,off segment: excursion_tourism
+catamaran dinghy,140,6,off segment: wrong_size_class
+catamaran racing,140,6,off segment: racing
+catamaran skiff,140,8,off segment: wrong_size_class
+catamaran snorkeling,140,8,off segment: excursion_tourism
+catamaran trip,140,16,off segment: excursion_tourism
+catamaran trips caribbean,140,19,off segment: excursion_tourism
+catamaran vacations virgin islands,140,20,off segment: excursion_tourism
+catamaran whale watching,140,14,off segment: excursion_tourism
+catams,140,15,off segment: non_english
+cool runnings catamaran barbados,140,16,off segment: excursion_tourism
+palm beach catamaran,140,18,off segment: wrong_size_class
+small catamaran sailboats,140,15,off segment: wrong_size_class
+small power catamaran,140,13,off segment: wrong_size_class
+surf catamaran,140,2,off segment: wrong_size_class
+two person catamaran,140,7,off segment: wrong_size_class
+whats catamaran,140,27,off segment: non_english
+30 foot catamaran,110,15,off segment: wrong_size_class
+catamaran cruise italy,110,5,off segment: excursion_tourism
+catamaran culebra,110,11,off segment: excursion_tourism
+catamaran dr,110,17,off segment: not_a_boat
+catamaran drive,110,14,off segment: not_a_boat
+catamaran kite safari,110,3,off segment: wrong_size_class
+catamaran kitesurf safari,110,0,off segment: wrong_size_class
+catamaran outfits,110,24,off segment: not_a_boat
+catamaran party boat,110,10,off segment: excursion_tourism
+catamaran rx,110,21,off segment: not_a_boat
+catamaran song,110,24,off segment: not_a_boat
+catamaran stand up paddle board,110,6,off segment: wrong_size_class
+catamaran sup,110,8,off segment: wrong_size_class
+catamaran trips in caribbean,110,15,off segment: excursion_tourism
+catamaran vacations,110,23,off segment: excursion_tourism
+cheap catamaran,110,11,off segment: wrong_size_class
+class a catamaran,110,11,off segment: racing
+international a class catamaran,110,14,off segment: racing
+mediterranean catamaran cruise,110,11,off segment: excursion_tourism
+navy catamaran,110,17,off segment: other_brand
+portable catamaran,110,18,off segment: wrong_size_class
+que es un catamaran,110,7,off segment: non_english
+racing catamarans,110,13,off segment: racing
+small catamaran power boat,110,13,off segment: wrong_size_class
+small catamarans,110,20,off segment: wrong_size_class
+small sail catamaran,110,19,off segment: wrong_size_class
+turtle canyon snorkel cruise by catamaran,110,9,off segment: excursion_tourism

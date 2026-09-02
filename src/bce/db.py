@@ -3,7 +3,7 @@ import sqlite3
 
 SCHEMA_TABLES = (
     "broker", "voice_profile", "angle", "draft", "draft_asset", "outcome",
-    "keyword", "draft_keyword", "source_fingerprint",
+    "keyword", "draft_keyword", "source_fingerprint", "excluded_keyword",
 )
 
 #: Bumped whenever the shape below changes. Stored in `PRAGMA user_version` so
@@ -31,7 +31,11 @@ SCHEMA_TABLES = (
 #: hashes and not text. Purely additive (new columns via `ALTER TABLE ADD
 #: COLUMN`, a new table via `CREATE TABLE IF NOT EXISTS`), so no rebuild is
 #: needed this time, unlike version 3's format-CHECK migration.
-SCHEMA_VERSION = 5
+#: Bumped to 6 for the operator's curated keyword banks (spec §5b "Approved and
+#: excluded banks"): one new table, `excluded_keyword`, holding the phrases the
+#: operator has ruled out by hand. Additive -- `CREATE TABLE IF NOT EXISTS`
+#: only, nothing existing is rewritten.
+SCHEMA_VERSION = 6
 
 #: Columns added to already-created tables after their first release. Applied
 #: additively by `init_schema` via ALTER TABLE, in declaration order.
@@ -220,6 +224,20 @@ CREATE TABLE IF NOT EXISTS draft_keyword (
     draft_id   INTEGER NOT NULL REFERENCES draft(id),
     keyword_id INTEGER NOT NULL REFERENCES keyword(id),
     role       TEXT NOT NULL CHECK (role IN ('primary', 'secondary'))
+);
+
+-- spec §5b: the operator's hand-curated exclusion bank. A *blocklist*, held
+-- separately from `keyword` on purpose: `keyword.segment_relevant` records
+-- what a heuristic decided at import time and is re-derived by every future
+-- import, while this table records what a human decided and must survive
+-- those imports. A phrase here is never selectable, whatever metrics a later
+-- Semrush export gives it. `phrase` is stored casefolded and
+-- whitespace-collapsed so matching does not depend on export formatting.
+CREATE TABLE IF NOT EXISTS excluded_keyword (
+    phrase    TEXT NOT NULL,
+    database  TEXT NOT NULL DEFAULT 'us',
+    reason    TEXT,
+    UNIQUE (phrase, database)
 );
 
 -- spec §8: "Exactly one primary per draft" -- enforced here by a partial

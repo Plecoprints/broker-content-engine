@@ -174,6 +174,40 @@ matter: transactional intent and off-target subject matter turned out to be almo
 the twelve transactional keywords in the export were already excluded as off-segment — rugs, inflatables,
 tourist day-trips.
 
+### Approved and excluded banks
+
+Decided 2026-09-02. The operator curates the bank by hand, and that curation — not any threshold in
+this section — is the authority on what may be written about.
+
+Two committed files, together the whole 243-keyword export this section was written against:
+
+| File | Rows | Role |
+|---|---|---|
+| `data/keywords-approved.csv` | 148 | **The only source.** Nothing is drafted against a phrase absent from it |
+| `data/keywords-excluded.csv` | 95 | **A blocklist.** Never selectable, whatever its metrics |
+
+Loaded with `bce keywords data/keywords-approved.csv` and `bce exclusions data/keywords-excluded.csv`.
+
+**The blocklist is a fifth gate, and it lives in its own table.** The four gates above
+(`qualifies`, `segment_relevant`, `editorial`, `competitor_brand`) are all *derived from metrics*, so
+every one of them is recomputed by the next import — which means any of them can flip back to passing
+when Semrush re-measures. `excluded_keyword` records a human decision instead, so it must outrank them
+and survive those re-imports. `catamaran club` is the worked example: excluded by hand as `other_brand`,
+yet 1,000 volume at KD 20 clears every automatic gate. Only the blocklist stops it.
+
+Matching is casefolded and whitespace-collapsed. A blocklist that failed open on `"  Racing  CATAMARAN "`
+would be worse than none, because it would look like it was working.
+
+**The banks corroborate this section rather than contradicting it.** All 148 approved rows clear
+KD < 30 and volume > 100; all 148 pass segment relevance; all 148 are editorial intent. The two files do
+not overlap. And the single keyword the operator excluded for intent rather than segment —
+`solar powered catamaran` (480, KD 21) — is exactly the one this spec predicted the intent rule would
+remove. Exclusion reasons, for the record: `wrong_size_class` 32, `excursion_tourism` 31, `not_a_boat` 11,
+`racing` 8, `other_brand` 7, `non_english` 5, `not editorial intent` 1.
+
+`data/keyword_bank.sample.csv` (formerly `keyword_bank.csv`) is a fixture for tests and importer
+development. It is **not** the operator's bank and must never be imported into a working database.
+
 ### Competitor brand terms
 
 Semantic expansion surfaces competitor brand names that pass both filters — `lagoon catamaran` (2,400,

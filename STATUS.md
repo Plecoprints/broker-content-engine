@@ -14,7 +14,7 @@ for the binding design. This file is only the current state and the immediate ne
 |---|---|
 | Broker shortlist import and qualification | Done |
 | Voice profiling | Done |
-| Keyword bank, four selection gates | Done |
+| Keyword bank, five selection gates | Done — operator's approved/excluded banks are the authority (§5b) |
 | Angle proposal and three-format drafting | Done |
 | Three originality gates (§10.3) | Done |
 | Operator UI (`bce serve`) | Done — shortlist, add brokers, draft viewer with keyword and gate panels |
@@ -45,6 +45,8 @@ Then run in this order, and **stop after `profile`**:
 
 ```bash
 bce init
+bce keywords data/keywords-approved.csv   # the only keyword source (§5b)
+bce exclusions data/keywords-excluded.csv # blocklist; never selectable
 bce import <brokers.csv>
 bce qualify      # visits sites, respects robots.txt — cheap, reversible
 bce profile      # learns each voice — cheap, reversible
@@ -60,6 +62,14 @@ bce draft        # spends real API budget; capped at 7 brokers per run
   near 2,000 words, so a blocking check would fail every pillar.
 - **`tailored_score` of `NULL` means "not comparable", not zero.** A broker profiled with a
   register but no writing statistics gets NULL and is not blocked.
+- **The operator's two curated banks are the authority on keywords.**
+  `data/keywords-approved.csv` (148) is the only source; `data/keywords-excluded.csv` (95) is a
+  blocklist enforced as a fifth selection gate, in its own `excluded_keyword` table. It lives
+  separately because the other four gates are derived from metrics and get recomputed by every
+  import, while a human's exclusion has to survive them. Load both after `bce init`:
+  `bce keywords data/keywords-approved.csv` then `bce exclusions data/keywords-excluded.csv`.
+  `data/keyword_bank.sample.csv` is a test fixture, not a bank — never import it.
+
 - **Keyword gates are four independent checks**, not one: difficulty, volume, segment
   relevance, and editorial intent. A keyword can pass the numbers and still be wrong —
   the operator's own export contained `catamaran stripe light blue-ivory area rug` at
