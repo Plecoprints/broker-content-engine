@@ -16,7 +16,7 @@ for the binding design. This file is only the current state and the immediate ne
 | Voice profiling | Done |
 | Keyword bank, five selection gates | Done — operator's approved/excluded banks are the authority (§5b) |
 | Angle proposal and three-format drafting | Done |
-| Three originality gates (§10.3) | Done |
+| Three originality gates (§10.3) | Done — three more specified, not built (§10.9) |
 | Operator UI (`bce serve`) | Done — shortlist, add brokers, draft viewer with keyword and gate panels |
 
 ## Never yet run against a real broker
@@ -56,6 +56,17 @@ bce draft        # spends real API budget; capped at 7 brokers per run
 ```
 
 ## Decisions that would otherwise surprise you
+
+- **Stage 5 is no longer a blocking human approval** (§10.9, revised 2026-09-02). A draft ships
+  when it clears a six-gate ensemble; the broker, who publishes or does not, is the human
+  judgment on editorial fit; the operator reads a *sample* to catch gate drift. Three gates
+  exist (unique, tailored, original); three are specified but **not built** — a mechanical
+  no-Sunreef-product-claims gate (§10.4, rewritten to refuse claims rather than verify them,
+  since verifying needs a source of truth that does not exist), plus editorial-value and
+  brand-quality judges. Every gate fails closed, and the judges must not run on the model
+  that wrote the draft. **Sampling starts at 100% for the first pilot run** and steps down
+  only once the gates have been seen working — removing a control before it has ever been
+  measured is not the same as trusting it.
 
 - **Long drafts are not blocked on voice match.** Voice matching is binding for medium and
   short, advisory for the 2,000–2,300 word pillar. No broker's typical article length is

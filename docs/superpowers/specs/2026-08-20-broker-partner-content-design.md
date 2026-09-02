@@ -48,7 +48,7 @@ The engineering is straightforward. The hard problem is editorial:
 
 A broker publishes what helps them sell yachts and serve clients. They will not publish a Sunreef advertisement. The system must produce content where **Sunreef appears as a credible example inside a genuinely useful article**, not as the subject of one.
 
-Every draft must pass the **editorial value test**: *if every Sunreef mention were removed, would this still be worth publishing on this broker's blog?* If no, the draft is rejected. This is a hard gate (§5, Stage 5), not a guideline, and it now applies to every draft without exception.
+Every draft must pass the **editorial value test**: *if every Sunreef mention were removed, would this still be worth publishing on this broker's blog?* If no, the draft is rejected. This is a hard gate, not a guideline, and it now applies to every draft without exception. Enforced as a gate in the §10.9 ensemble rather than by a reviewer's judgment (revised 2026-09-02).
 
 ## 4. The shortlist
 
@@ -73,7 +73,7 @@ Because the affinity signal is inferred from public pages, it will be incomplete
 
 ## 5. Architecture
 
-Seven stages. Stages 1–4 automated; **Stage 5 is a human gate operated through the UI (§9)**; 6–7 human-led with tooling support.
+Seven stages. Stages 1–4 automated; **Stage 5 is a gate ensemble with operator sampling, operated through the UI (§9)** — revised 2026-09-02, see §10.9; 6–7 human-led with tooling support.
 
 ```
 [1] Discover  →  [2] Qualify  →  [3] Voice Profile  →  [4] Angle + Draft
@@ -116,7 +116,7 @@ The short form is a condensation of the long form, not a separate piece: same an
 
 **Stage 4b — Asset attachment (deferred).** Attach marketing-approved imagery from the asset library so the broker receives a publishable package rather than plain text. Behind an `AssetProvider` interface with a null implementation, so Stage 4 does not change when the real source lands (§7, §11.3). **Nothing blocks on this.**
 
-**Stage 5 — Human review gate.** Operated in the UI. Reviewer sees the voice profile, the angle rationale, and the draft; edits inline; approves or rejects against the editorial value test. Nothing proceeds without explicit approval. Cannot be automated or bypassed.
+**Stage 5 — Quality gate.** **Revised 2026-09-02 (§10.9): no longer a blocking human approval.** A draft must clear the §10.9 gate ensemble — six checks, every one failing closed — and the broker, who publishes or does not, is the human judgment on editorial fit. The UI remains, and the operator still sees the voice profile, the angle rationale and the draft, but now for **sampling**: reading a share of what shipped to detect gate drift, not approving each item. Sampling starts at 100% and steps down only as the gates earn it (§10.9).
 
 **Stage 6 — Outreach.** Produces a personalized, relationship-agnostic message plus the draft, for a human to send. The system does not send email.
 
@@ -367,7 +367,7 @@ Nothing reaches `sent` without a human in `reviewed_by`.
 
 ## 9. Operator UI
 
-A review gate with no surface to operate it is a gate nobody walks through. This is not optional polish — Stage 5 is the step that cannot be automated, so it needs the best interface in the system.
+A review surface nobody can operate is a surface nobody uses. This is not optional polish: since 2026-09-02 the UI's job is **sampling** (§10.9) rather than per-draft approval, and a sample nobody reads is how gate drift goes unnoticed. It still needs the best interface in the system.
 
 **Run:** `uvicorn app:app --reload` → `http://localhost:8000`. Single process, reads and writes the same SQLite file as the pipeline.
 
@@ -456,7 +456,7 @@ Stage 5 is the only thing standing between the model and a broker's blog.
    from until the next cycle, with no reroll
 4. The broker picks the one they like most — this is where their agency lives
 5. The pick generates all **three formats** (long, medium, short) from that single angle
-6. Each runs the three §10.3 gates and **enters the Stage 5 queue**
+6. Each runs the §10.9 gate ensemble; anything that clears it is delivered, and a sample lands in the operator's queue for drift-checking (§10.9)
 7. Once approved, the content appears in that broker's portal with its paired asset
 
 **The weekly human message is what makes this safe as well as sociable.** Because a person is already
@@ -512,7 +512,7 @@ name that is the wrong first impression. Supabase Auth provides invite and magic
 
 **Resolved — a human sees the slate first.** The concern was that requesting options would put model
 output in front of an external partner with no Sunreef review: a narrower exposure than a
-generate-a-draft button, since Stage 5 still gates every draft, but the same category. The constraints
+generate-a-draft button, since every draft still clears the §10.9 ensemble, but the same category. The constraints
 on angle text — no fabricated vessel claims (§10.4), never naming a competitor — live only in the
 `_SYSTEM` prompt, and this codebase is explicit that a prompt is a request rather than an enforcement:
 *"the model's output is untrusted, and a `maxLength` in a JSON schema is not a guarantee."* The weekly
@@ -530,6 +530,37 @@ Stage 5 approve the package or each format independently? Approving a package is
 matches how the three are actually produced; approving individually lets a reviewer keep the long form
 and reject a weak condensation, which `bce.cli`'s own reporting already distinguishes ("long draft
 kept, medium and/or short condensation..."). Decide before the review queue is built for the portal.
+
+### Portal telemetry — what the broker actually uses
+
+Decided 2026-09-02. Sunreef needs to know which option each broker takes. Four mechanisms, weakest
+first; the fourth is the one that closes the loop.
+
+1. **Copy button, logged.** Records `(broker_id, draft_id, format, timestamp)` before writing to the
+   clipboard. Reliable for the button, and **only** for the button — intercepting a mouse selection and
+   ⌘C is unreliable and reads as surveillance. The answer is design, not code: make the Copy button the
+   *convenient* path — one click, formatted, ready to paste — so nobody bothers selecting by hand.
+2. **Download button, logged.** The same record. The natural path once a paired asset is involved.
+3. **UTM links** (§5, Stage 7). Already designed, and the strongest *outcome* signal, because it counts
+   readers rather than intent.
+4. **Publication detection, reusing the fingerprint machinery.** Broker articles are already shingled
+   into `source_fingerprint` for §10.3's originality gate, and Stage 2 already crawls broker editorial
+   sections. Point the same containment measure the other way: re-crawl periodically, shingle new
+   articles, and test them against drafts delivered to that broker. This detects publication **even
+   when nobody clicked anything, and even when the broker edited the piece** — which they will, and
+   should. No click-tracking can answer "what did they actually run"; this can.
+
+New table, feeding the same funnel view as `outcome`:
+
+```
+portal_event(broker_id, draft_id, format, event, occurred_at)
+   event IN ('viewed', 'copied', 'downloaded')
+```
+
+**Tell the brokers.** One line in the portal — *we track which pieces get used so we can send you
+better ones*. Several are EU-based, this is a partner surface carrying the Sunreef name, and silent
+behavioural logging is both a trust problem and a GDPR question worth not having. Said plainly it reads
+as a feature.
 
 **Still not designed here:** the queue and worker that turn a pick into a draft run, portal schema and
 row-level security policies, hosting, session handling, and how the weekly cadence in the paragraph above
@@ -562,9 +593,66 @@ Requirements, not preferences:
    **`tailored_score` distinguishes zero from not-comparable.** A profile carrying a register but no statistics is a legitimate state — drafting refuses only when `register` is NULL. For such a broker the tailored score is `NULL` ("nothing to compare"), never `0.0`, and it does not block. A fabricated zero would be indistinguishable from a genuinely terrible voice match and would reject every medium and short draft for any thinly-profiled broker.
 
 7. **Asset usage rights.** Marketing-approved-for-Sunreef is not the same as licensed-for-a-third-party-to-republish. Any image or video supplied to a broker must carry explicit permission for that broker to publish it on their own site. **Resolve with the creative team while the asset library is being built (§11.3), not after.**
-4. **Factual accuracy.** Any claim about Sunreef vessels — dimensions, specs, certifications — must be verifiable against official Sunreef material. Fabricated specifications reaching a broker's blog is the highest-severity failure mode in this system.
+4. **Factual accuracy — BLOCKING, and enforced by refusal rather than verification.** Fabricated specifications reaching a broker's blog remains the highest-severity failure mode in this system. **Revised 2026-09-02:** rather than requiring each claim be *verified* against official Sunreef material — which needs a source of truth that does not exist, and which neither a reviewer nor a judge model can substitute for — drafts may make **no specific factual claim about any named Sunreef vessel at all**: no dimension, no capacity, no performance figure, no certification. This costs nothing editorially, because §5b's intent rule and `_SYSTEM`'s "not an advertisement for any yacht brand" already push every angle toward category content rather than product content. A gate that blocks a claim is mechanical and testable; a gate that verifies one is a research project. See §10.9.
 5. **Honest attribution in outreach.** Messages state plainly that Sunreef prepared the draft.
 6. **Relationship-agnostic copy.** Because affinity detection is incomplete (§4), no outreach may assume the recipient is a stranger to Sunreef.
+
+### 10.9 The gate ensemble, and what replaced the human approval
+
+Revised 2026-09-02. **Stage 5's blocking human approval is removed.** A draft ships when it clears the
+ensemble below; the operator reads a sample afterwards rather than approving each item.
+
+**Why this holds.** The broker is the human in the loop, and for editorial judgment a better one than a
+Sunreef reviewer: it is their masthead, their readers, their voice, and nothing reaches the public
+without them choosing to publish it. A draft they dislike is simply not used, which is a real filter
+with real stakes on it.
+
+**Where the broker is structurally blind, and the one thing that had to change with it.** A broker
+cannot assess a claim about a Sunreef vessel. They are not the manufacturer; a fabricated dimension or
+certification looks authoritative, concerns *our* product, and they would publish it in good faith —
+the §12 Critical risk, arriving by the one route their judgment cannot cover. **A judge model does not
+fix this either.** Checking one model's claims about Sunreef vessels with another model is two guesses,
+not a verification, and where both share a lineage their blind spots are *correlated* with the
+author's. This spec is already explicit that the model's output is untrusted and that a schema
+constraint is a request rather than a guarantee; the same applies to a judge's prompt. So §10.4 was
+rewritten to **refuse product claims rather than verify them** — mechanical, testable, and free,
+because category content never needed them.
+
+**The ensemble.** Six gates. The first three exist; the last three are new.
+
+| Gate | Compared against | Mechanism | Kind |
+|---|---|---|---|
+| **Unique** (§10.3) | Every draft ever produced | Embedding cosine, threshold 0.88 | Mechanical |
+| **Tailored** (§10.3) | This broker's voice profile | Register/structure score | Mechanical |
+| **Original** (§10.3) | The broker's own prose | Shingle containment, threshold 0.5 | Mechanical |
+| **No product claims** (§10.4) | Named Sunreef models | Refuses any specific figure or certification attached to a Sunreef vessel | Mechanical |
+| **Editorial value** (§3) | The broker's own blog | Judge: *strip every Sunreef mention — is this still worth publishing here?* | Judge |
+| **Brand quality** | Sunreef's standards | Judge: does this represent the brand at the quality we would sign? | Judge |
+
+**Every gate fails closed.** §10.3 already sets the rule — *unverifiable is not the same as clean* —
+and it now governs all six. A judge call that errors, times out, or refuses is a **reject**, never a
+pass. A gate that silently degrades to "fine" when it cannot check is worse than no gate, because it
+reports confidence it never earned.
+
+**Judge independence is a requirement, not a preference.** The two judge gates must not run on the same
+model instance and prompt lineage that wrote the draft. Prefer a different model; prefer mechanical
+checks wherever a rule can be expressed as one. A judge that shares the author's blind spots is
+theatre.
+
+**Sampling replaces gating, on a schedule — and the order matters.** Nothing in this pipeline has ever
+run against a real broker, and two of the three existing thresholds are explicitly first estimates
+awaiting calibration. Removing human review *before* the gates have been observed working once would
+be calibrating away a control that has never been measured. So:
+
+| Phase | Operator sample |
+|---|---|
+| First pilot run | **100%** — every draft read, as today, but as observation rather than approval |
+| Once the gates have held across a full run and the two thresholds are calibrated | Step down deliberately, recorded, and never to zero |
+| Steady state | A floor high enough to notice drift; agents degrade quietly, and without a sample the first report comes from a broker |
+
+**Unaffected.** §10.1's legal review is a disclosure obligation, not a quality gate, and remains
+**blocking before first outreach**. §10.2 crawling, §10.5 attribution, §10.6 relationship-agnostic copy
+and §10.7 asset rights all stand unchanged.
 
 ## 11. OPEN DECISIONS
 
@@ -573,7 +661,7 @@ Requirements, not preferences:
 
 **Still open:**
 
-1. **Review ownership.** Who at Sunreef operates the Stage 5 queue? The UI makes this concrete — someone needs the time and the machine. Without a named owner the pipeline stalls at its most important step. **This is the single unresolved blocker.**
+1. **Sampling ownership.** Who at Sunreef reads the Stage 5 sample? **Downgraded from blocker 2026-09-02 (§10.9):** with the gate ensemble shipping drafts on its own, an absent owner no longer stalls the pipeline — which is exactly why this now needs naming rather than assuming. Unread samples are how gate drift reaches a broker before it reaches us, and §10.9 sets the first pilot run at 100%. Someone needs the time and the machine.
 2. **Legal review.** §10.1 is now blocking before first outreach. Who initiates it, and on what timeline? Build can proceed in parallel; sending cannot.
 3. **Asset library.** Creative team is building a Dropbox of marketing-approved images/video with API access, 1–2 weeks out. Two things needed from them: the API shape, and **written confirmation that brokers may republish the assets** (§10.7). Build proceeds against `NullAssetProvider` meanwhile.
 4. **Languages.** Sunreef sells into non-English markets. *Assumed: English-only for v1.*
