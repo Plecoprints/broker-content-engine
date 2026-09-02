@@ -1,0 +1,513 @@
+<title>Broker Content Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --abyss:      #06212B;
+    --hull:       #0E3542;
+    --paper:      #E8E9E4;
+    --paper-lift: #F3F4F1;
+    --ink:        #0A2531;
+    --ink-soft:   #476069;
+    --rule:       #C9CEC9;
+    --brass:      #A6742C;
+    --signal:     #12776C;
+    --locked:     #A8452F;
+
+    --bg:         var(--paper);
+    --surface:    var(--paper-lift);
+    --fg:         var(--ink);
+    --fg-soft:    var(--ink-soft);
+    --border:     var(--rule);
+
+    --display: "Bodoni Moda", "Didot", "Times New Roman", serif;
+    --body:    "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --mono:    "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+
+    --measure: 66ch;
+    --gut: clamp(1.5rem, 4vw, 3.5rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0A1A21;
+      --paper-lift: #0F262F;
+      --ink:        #E4E8E6;
+      --ink-soft:   #92A6AD;
+      --rule:       #21414C;
+      --brass:      #D6A155;
+      --signal:     #5CC3B2;
+      --locked:     #E08066;
+
+      --bg:      var(--paper);
+      --surface: var(--paper-lift);
+      --fg:      var(--ink);
+      --fg-soft: var(--ink-soft);
+      --border:  var(--rule);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #0A1A21;
+    --paper-lift: #0F262F;
+    --ink:        #E4E8E6;
+    --ink-soft:   #92A6AD;
+    --rule:       #21414C;
+    --brass:      #D6A155;
+    --signal:     #5CC3B2;
+    --locked:     #E08066;
+
+    --bg:      var(--paper);
+    --surface: var(--paper-lift);
+    --fg:      var(--ink);
+    --fg-soft: var(--ink-soft);
+    --border:  var(--rule);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: var(--gut); }
+
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; text-wrap: balance; margin: 0; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin: 0;
+  }
+
+  /* ---------- Hero ---------- */
+
+  .hero {
+    background: var(--abyss);
+    color: #E7ECEA;
+    padding-block: clamp(3.5rem, 9vw, 7rem);
+    border-bottom: 3px solid var(--brass);
+  }
+  .hero .eyebrow { color: #C9963F; }
+  .hero h1 {
+    font-size: clamp(2.6rem, 7vw, 5rem);
+    line-height: 1.02;
+    letter-spacing: -0.015em;
+    margin-block: 1.1rem 1.4rem;
+    max-width: 20ch;
+  }
+  .hero h1 em { font-style: italic; color: #C9963F; }
+  .hero p {
+    max-width: 56ch;
+    font-size: clamp(1rem, 2vw, 1.18rem);
+    color: #A9BDC0;
+    margin: 0;
+  }
+
+  .figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 1px;
+    margin-top: clamp(2.5rem, 6vw, 4rem);
+    background: #16404E;
+    border: 1px solid #16404E;
+  }
+  .figure { background: var(--abyss); padding: 1.4rem 1.5rem; }
+  .figure .n {
+    font-family: var(--display);
+    font-size: clamp(1.9rem, 4vw, 2.6rem);
+    line-height: 1;
+    color: #F0F3F1;
+    font-variant-numeric: tabular-nums;
+  }
+  .figure .l {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #7E979C;
+    margin-top: 0.6rem;
+    line-height: 1.45;
+  }
+
+  /* ---------- Sections ---------- */
+
+  section { padding-block: clamp(3rem, 7vw, 5.5rem); }
+  section + section { border-top: 1px solid var(--border); }
+
+  .head { max-width: var(--measure); margin-bottom: 2.6rem; }
+  .head h2 {
+    font-size: clamp(1.75rem, 3.6vw, 2.6rem);
+    line-height: 1.12;
+    margin-block: 0.7rem 0.9rem;
+  }
+  .head p { color: var(--fg-soft); margin: 0; max-width: 60ch; }
+
+  /* ---------- Market comparison ---------- */
+
+  .market { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2.5rem; }
+
+  .col-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.7rem;
+    margin-bottom: 1.4rem;
+    border-bottom: 2px solid currentColor;
+  }
+  .col.open  .col-head { color: var(--signal); }
+  .col.shut  .col-head { color: var(--locked); }
+  .col-head h3 { font-size: 1.3rem; color: var(--fg); }
+  .col-head span {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .kw { margin-bottom: 1.15rem; }
+  .kw-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+  }
+  .kw-term { font-size: 0.94rem; }
+  .kw-vol {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-soft);
+    white-space: nowrap;
+  }
+  .bar { height: 7px; background: var(--border); position: relative; }
+  .bar i { position: absolute; inset: 0 auto 0 0; display: block; }
+  .col.open .bar i { background: var(--signal); }
+  .col.shut .bar i { background: var(--locked); opacity: 0.5; }
+
+  .kd {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    padding: 0.12rem 0.42rem;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  .col.open .kd { color: var(--signal); }
+  .col.shut .kd { color: var(--locked); }
+
+  .note {
+    margin-top: 1.8rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+    color: var(--fg-soft);
+    max-width: 46ch;
+  }
+
+  /* ---------- Formats ---------- */
+
+  .formats { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+  .fmt { background: var(--surface); padding: 1.7rem 1.6rem; }
+  .fmt h3 { font-size: 1.45rem; margin-bottom: 0.15rem; }
+  .fmt .len {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brass);
+    display: block;
+    margin-bottom: 0.9rem;
+  }
+  .fmt p { margin: 0; font-size: 0.93rem; color: var(--fg-soft); }
+
+  /* ---------- Gates ---------- */
+
+  .gates { display: grid; gap: 0; max-width: 760px; }
+  .gate {
+    display: grid;
+    grid-template-columns: 3rem 1fr;
+    gap: 1.4rem;
+    padding-block: 1.3rem;
+    border-top: 1px solid var(--border);
+  }
+  .gate:last-child { border-bottom: 1px solid var(--border); }
+  .gate .num {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--brass);
+    padding-top: 0.35rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .gate h3 { font-size: 1.15rem; margin-bottom: 0.25rem; }
+  .gate p { margin: 0; font-size: 0.93rem; color: var(--fg-soft); max-width: 58ch; }
+
+  /* ---------- Economics ---------- */
+
+  .econ { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem 2.5rem; align-items: start; }
+  .price .n {
+    font-family: var(--display);
+    font-size: clamp(2.6rem, 6vw, 3.9rem);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: block;
+  }
+  .price .l { font-size: 0.9rem; color: var(--fg-soft); margin-top: 0.7rem; display: block; max-width: 26ch; }
+
+  /* ---------- Close ---------- */
+
+  .close { background: var(--abyss); color: #E7ECEA; padding-block: clamp(3rem, 7vw, 5rem); border-top: 3px solid var(--brass); }
+  .close h2 { font-size: clamp(1.6rem, 3.4vw, 2.3rem); max-width: 24ch; margin-bottom: 1.2rem; }
+  .close p { color: #A9BDC0; max-width: 58ch; margin: 0 0 1rem; }
+  .close .stamp {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #6E888D;
+    margin-top: 2.5rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid #16404E;
+  }
+
+  a { color: inherit; }
+  a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .bar i { animation: grow 900ms cubic-bezier(.22,.61,.36,1) both; }
+    @keyframes grow { from { transform: scaleX(0); transform-origin: left; } to { transform: scaleX(1); } }
+  }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Internal briefing &middot; Marketing Technology</p>
+    <h1>Our brokers are a distribution network we have <em>never switched on</em>.</h1>
+    <p>Sunreef has hundreds of broker and dealer partners with their own websites, blogs and newsletters — audiences of qualified buyers we do not currently reach. They would publish for us. We have never given them anything consistent to publish.</p>
+
+    <div class="figures">
+      <div class="figure">
+        <span class="n">34,920</span>
+        <span class="l">Monthly searches<br>we can realistically win</span>
+      </div>
+      <div class="figure">
+        <span class="n">$0.17</span>
+        <span class="l">Cost to produce a full<br>content package per broker</span>
+      </div>
+      <div class="figure">
+        <span class="n">3</span>
+        <span class="l">Ready-to-publish formats<br>per broker, per cycle</span>
+      </div>
+      <div class="figure">
+        <span class="n">7</span>
+        <span class="l">Automated quality gates<br>before a human ever looks</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section class="wrap">
+    <div class="head">
+      <p class="eyebrow">The gap</p>
+      <h2>Brokers sell our boats. They are not equipped to market them.</h2>
+      <p>A broker who wants to write about Sunreef has to research it, write it and optimise it themselves — so most write nothing, or write something thin. The result is that the people closest to our buyers are the quietest voices in our category. This engine removes the work: it studies how each broker already writes, then produces publication-ready articles in their own voice, about catamarans, featuring Sunreef.</p>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="head">
+      <p class="eyebrow">The opportunity</p>
+      <h2>The luxury yacht category is closed. Catamarans are wide open.</h2>
+      <p>We analysed 243 search terms against live market data. The pattern is decisive: the broad luxury-yacht terms are dominated by publishers and portals our brokers cannot outrank. The catamaran terms — our actual category — are winnable today.</p>
+    </div>
+
+    <div class="market">
+      <div class="col open">
+        <div class="col-head">
+          <h3>Open to us</h3>
+          <span>Difficulty under 30</span>
+        </div>
+
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">catamaran for sale</span><span class="kw-vol">8,100 <span class="kd">KD 25</span></span></div>
+          <div class="bar"><i style="width:100%"></i></div>
+        </div>
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">catamarans for sale</span><span class="kw-vol">4,400 <span class="kd">KD 24</span></span></div>
+          <div class="bar"><i style="width:54.3%"></i></div>
+        </div>
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">power catamaran for sale</span><span class="kw-vol">2,400 <span class="kd">KD 17</span></span></div>
+          <div class="bar"><i style="width:29.6%"></i></div>
+        </div>
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">what is a catamaran</span><span class="kw-vol">1,900 <span class="kd">KD 25</span></span></div>
+          <div class="bar"><i style="width:23.5%"></i></div>
+        </div>
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">yacht refit</span><span class="kw-vol">1,900 <span class="kd">KD 10</span></span></div>
+          <div class="bar"><i style="width:23.5%"></i></div>
+        </div>
+
+        <p class="note">Low difficulty means a broker&rsquo;s own blog post has a genuine chance of ranking — without the domain authority of a major publisher.</p>
+      </div>
+
+      <div class="col shut">
+        <div class="col-head">
+          <h3>Closed to us</h3>
+          <span>Difficulty 30 and above</span>
+        </div>
+
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">luxury yacht charter</span><span class="kw-vol">8,100 <span class="kd">KD 60</span></span></div>
+          <div class="bar"><i style="width:100%"></i></div>
+        </div>
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">yacht broker</span><span class="kw-vol">5,400 <span class="kd">KD 78</span></span></div>
+          <div class="bar"><i style="width:66.7%"></i></div>
+        </div>
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">boat show</span><span class="kw-vol">5,400 <span class="kd">KD 76</span></span></div>
+          <div class="bar"><i style="width:66.7%"></i></div>
+        </div>
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">sailing catamaran</span><span class="kw-vol">3,600 <span class="kd">KD 41</span></span></div>
+          <div class="bar"><i style="width:44.4%"></i></div>
+        </div>
+        <div class="kw">
+          <div class="kw-top"><span class="kw-term">yacht financing</span><span class="kw-vol">1,000 <span class="kd">KD 37</span></span></div>
+          <div class="bar"><i style="width:12.3%"></i></div>
+        </div>
+
+        <p class="note">High volume, but effectively unreachable. Content aimed here does not rank, so it produces nothing for the broker and no reason for them to publish us again.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="head">
+      <p class="eyebrow">A finding worth acting on</p>
+      <h2>The strongest open ground sits directly on our differentiator.</h2>
+      <p><strong>Solar, electric and hybrid catamaran</strong> searches total roughly <strong>1,460 a month at difficulty 13&ndash;23</strong> — low-competition demand pointing squarely at Sunreef Eco. That is not a generic catamaran claim any builder could make. It is our category, and nobody has taken it.</p>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="head">
+      <p class="eyebrow">What each partner receives</p>
+      <h2>One story, three ways to publish it.</h2>
+      <p>Brokers differ in what they can actually use. A large brokerage runs a blog; a smaller one has only a newsletter. Every partner gets all three, drawn from the same article so the message never diverges.</p>
+    </div>
+
+    <div class="formats">
+      <div class="fmt">
+        <h3>Pillar</h3>
+        <span class="len">2,000&ndash;2,300 words</span>
+        <p>A cornerstone article for their blog, built for depth and search visibility. Written to rank, and to stay relevant for years.</p>
+      </div>
+      <div class="fmt">
+        <h3>Feature</h3>
+        <span class="len">Matched to their usual length</span>
+        <p>A regular post written to read like they wrote it — matched to their register, sentence rhythm and article structure. This is the one that has to pass as theirs.</p>
+      </div>
+      <div class="fmt">
+        <h3>Newsletter</h3>
+        <span class="len">100&ndash;200 words</span>
+        <p>A compressed version for their email list. For many partners this is the channel they actually use every week.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="head">
+      <p class="eyebrow">Brand protection</p>
+      <h2>Nothing reaches a partner that has not survived seven checks.</h2>
+      <p>Content published under a broker&rsquo;s name still reflects on ours. Every draft is tested automatically before a human reviewer ever opens it — and a human still approves every single piece before it is sent.</p>
+    </div>
+
+    <div class="gates">
+      <div class="gate">
+        <span class="num">01</span>
+        <div><h3>Search difficulty</h3><p>Every keyword must be one the broker can realistically rank for.</p></div>
+      </div>
+      <div class="gate">
+        <span class="num">02</span>
+        <div><h3>Real demand</h3><p>Only terms with meaningful monthly search volume are used.</p></div>
+      </div>
+      <div class="gate">
+        <span class="num">03</span>
+        <div><h3>On category</h3><p>Filters out terms that look strong numerically but have nothing to do with 60ft+ luxury catamarans.</p></div>
+      </div>
+      <div class="gate">
+        <span class="num">04</span>
+        <div><h3>Editorial, not sales</h3><p>Purely transactional terms are excluded. Brokers publish articles, not advertisements.</p></div>
+      </div>
+      <div class="gate">
+        <span class="num">05</span>
+        <div><h3>Unique</h3><p>Checked against every article the system has ever produced, so two partners never receive the same piece.</p></div>
+      </div>
+      <div class="gate">
+        <span class="num">06</span>
+        <div><h3>Tailored</h3><p>Measured against that broker&rsquo;s own writing style before it can be sent as theirs.</p></div>
+      </div>
+      <div class="gate">
+        <span class="num">07</span>
+        <div><h3>Original</h3><p>Compared against the broker&rsquo;s own published work, so we never hand them back a version of something they already wrote.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="head">
+      <p class="eyebrow">Economics</p>
+      <h2>The cost is not a meaningful line item.</h2>
+      <p>At a cadence of 30 brokers a week — a pillar article, a feature and a newsletter for each — the entire production cost is below what the team spends on coffee.</p>
+    </div>
+
+    <div class="econ">
+      <div class="price">
+        <span class="n">$0.17</span>
+        <span class="l">Per broker, for all three formats</span>
+      </div>
+      <div class="price">
+        <span class="n">$22</span>
+        <span class="l">Per month at 30 brokers weekly</span>
+      </div>
+      <div class="price">
+        <span class="n">$266</span>
+        <span class="l">Per year, at full cadence</span>
+      </div>
+      <div class="price">
+        <span class="n">1,560</span>
+        <span class="l">Content packages produced annually at that rate</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="close">
+  <div class="wrap">
+    <p class="eyebrow">What this buys us</p>
+    <h2>Brand presence in the places our buyers already look.</h2>
+    <p>Every article a partner publishes puts Sunreef in front of an audience that trusts <em>them</em> — which is worth considerably more than the same words on our own site. It gives brokers a reason to talk about us to their list, week after week, and it puts our name against the search terms our category is actually built on.</p>
+    <p>The engine is built and tested. The remaining step is a live pilot against real partners.</p>
+    <p class="stamp">Search data: Semrush, US database, September 2026 &middot; 243 terms analysed, 148 eligible after filtering &middot; Production cost modelled at published API rates</p>
+  </div>
+</footer>
