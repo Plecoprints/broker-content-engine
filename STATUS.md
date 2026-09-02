@@ -83,9 +83,26 @@ bce draft        # spends real API budget; capped at 7 brokers per run
 
 In order, all after the pilot:
 
-1. **Broker-facing portal** (§9b) — partner logins, row-level security. A strong idea
-   surfaced late: let brokers pick from proposed angles rather than receiving finished
-   articles unprompted. A partner who chose the topic is far likelier to publish it.
+1. **Broker-facing portal** (§9b) — partner logins, row-level security. **What the broker
+   initiates is now settled (§9b, resolved 2026-09-02): angle *selection*, never
+   generation.** Weekly: the engine proposes each broker's slate of 3–5 angles, the
+   operator approves it, and **a human messages the broker** that new angles are waiting
+   (Stage 6 — the system does not send email). The broker picks one; that pick generates
+   all three formats, which run the §10.3 gates and land in the Stage 5 review queue, not
+   in the broker's hands. The slate is fixed for the week — no reroll. Because a person is
+   already in the loop each cycle to send the reminder, approving the slate first costs
+   nothing, so no model output ever reaches a broker unreviewed. There is no "generate"
+   button: there is an approved slate and a nudge to come look at it. A
+   Generate button would have bypassed Stage 5 — which §5 says cannot be bypassed — and
+   put unreviewed model output in front of an external partner, the §12 Critical risk.
+   It is also the better system: choosing the angle is the ownership that makes a partner
+   likely to publish. Note the portal shows `title`, `premise` and `audience_value` only —
+   `sunreef_relevance` and `score` are internal reasoning and must not reach a broker.
+   **Open:** review granularity — one pick yields three drafts, and §5 calls short "a
+   condensation of the long form, not a separate piece", so does Stage 5 approve the
+   package or each format? Budget is now quantified: ~$0.15 per broker per cycle, under
+   $10 for a full 50-broker week, which is what §11.5's missing ceiling should be set
+   against. Queue, workers, schema and hosting are still undesigned.
 2. **Marketing asset library** (§11.3) — images to pair with drafts. Blocked less on code
    than on §10.7 usage rights: marketing-approved-for-Sunreef is not the same as
    licensed-for-a-broker-to-republish.

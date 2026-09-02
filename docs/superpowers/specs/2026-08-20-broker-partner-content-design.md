@@ -424,7 +424,116 @@ and that is a database-level guarantee, not something to hand-roll in applicatio
 - **Nothing built so far is wasted.** The engine, the shortlist, the profiles and the admin UI all
   stand. The portal reads the same data through a different door.
 
-Not designed here. Recorded so the admin/broker split is deliberate rather than discovered late.
+The split above is recorded so it is deliberate rather than discovered late. What the broker actually
+*initiates* is settled below; the rest — schema, hosting, session handling — is still not designed here.
+
+### What the broker initiates — resolved 2026-09-02
+
+The operator described the portal as: the broker signs in, **clicks to have the engine generate content
+options**, and reviews them. That is a different system from the paragraph above, where content is
+produced and reviewed by Sunreef and the broker collects it. The difference is not cosmetic — it changes
+who sees model output first.
+
+**Resolved: a broker initiates *angle selection*, never *generation*.**
+
+> **The rule.** A broker may trigger work. What they trigger lands in the Stage 5 review queue,
+> never in their hands.
+
+**What forced it — Stage 5 (§5).** *"Nothing proceeds without explicit approval. Cannot be automated or
+bypassed."* A Generate button that shows its output to the broker drives straight through the one gate
+this spec protects hardest, and it does so on the default path, not in a corner case. The risk behind
+that gate is the only one §12 rates **Critical**: fabricated Sunreef specifications published
+externally. §10.4 requires every claim about a vessel to be verifiable against official material, and
+Stage 5 is the only thing standing between the model and a broker's blog.
+
+**The flow:**
+
+1. Weekly, the engine proposes each broker's slate — 3–5 angles, one call capped at
+   `MAX_TOKENS = 2048` — and the operator approves it in the admin UI
+2. **A human at Sunreef messages the broker**: a friendly reminder that new angles are waiting.
+   Consistent with Stage 6 (§5) — *"the system does not send email"* — this stays a person's job
+3. The broker signs in and reads the slate. **It is fixed for the week**: the only set they choose
+   from until the next cycle, with no reroll
+4. The broker picks the one they like most — this is where their agency lives
+5. The pick generates all **three formats** (long, medium, short) from that single angle
+6. Each runs the three §10.3 gates and **enters the Stage 5 queue**
+7. Once approved, the content appears in that broker's portal with its paired asset
+
+**The weekly human message is what makes this safe as well as sociable.** Because a person is already
+in the loop every cycle to send the reminder, approving the slate first costs nothing extra — so no
+model output ever reaches a broker unreviewed, and the broker never waits on generation. There is no
+"generate" button in this design: there is an approved slate and a nudge to come look at it.
+
+**The fixed weekly slate is doing real work,** not just rationing. It bounds spend to one angle call per
+broker per week against §6's 50-broker ceiling; it keeps the §10.3 uniqueness corpus single-writer,
+since angle generation never touches it and only operator-approved drafts do; and scarcity makes the
+choice considered rather than a slot-machine pull, which is the same reason §11 expects a partner who
+chose the topic to actually publish it.
+
+**Why this is the better system, not merely the safer one.** §11's own note is that a partner who chose
+the topic is far likelier to publish it. Choosing the angle *is* that ownership — choosing among finished
+articles is not, because by then the editorial decision has already been made for them.
+
+**Three consequences that follow, all of which a Generate button would have broken:**
+
+- **Spend stays bounded and attributable.** `MAX_DRAFT_CALLS = 7`, `MAX_PROFILE_CALLS = 20` and §6's
+  50-broker ceiling were all written assuming the operator initiates, and §6 requires that raising the
+  ceiling be *"a deliberate, recorded decision by Luis."* A Generate button delegates volume to 20–50
+  external users at Opus pricing; a broker who dislikes an output and clicks again four times has made a
+  spending decision nobody recorded. One draft per deliberate angle choice keeps §11.5's ceiling
+  meaningful.
+- **The uniqueness gate stays single-writer.** §10.3 compares each draft against every draft ever
+  produced and regenerates on rejection, with rejected drafts still counting as seen. Concurrent
+  broker-triggered generation makes that a race: two brokers drafting near-identical angles at once,
+  first commit winning, the corpus mutating under both. Queued selection serialises it.
+- **Latency stops mattering.** Angle proposal plus a 2,000–2,300 word pillar plus an embedding
+  round-trip is minutes, not a request/response. Asynchronous by construction, a pick today collected
+  tomorrow also *reads* as considered rather than machine-generated.
+
+**Field-level visibility — the broker sees a subset of an angle.** The `angle` row carries five fields
+(§8). Three are shown, two are not:
+
+| Field | Shown to broker | Why |
+|---|---|---|
+| `title` | Yes | It is the pitch |
+| `premise` | Yes | What the article would argue |
+| `audience_value` | Yes | Why *their* readers would want it — the argument for choosing it |
+| `sunreef_relevance` | **No** | Literally "how this connects to catamaran ownership *without reading as an advertisement*". A broker reading that sentence sees the machinery behind their own editorial calendar |
+| `score` | **No** | A numeric publishability rank on content pitched to them as tailored |
+
+This split does not exist in the schema; it is a portal-template concern. Recorded now because it is
+trivial before that template is written and awkward afterwards.
+
+**Credential delivery.** The first email carries sample content as an attachment — it earns the click
+before anyone is asked to sign in — and an **invite link with a single-use token**, never a username and
+password. The broker sets their own password on first use. Emailed passwords persist in inboxes, get
+forwarded, and mean Sunreef once knew the plaintext; for a partner-facing system carrying the Sunreef
+name that is the wrong first impression. Supabase Auth provides invite and magic-link flows directly.
+
+**Resolved — a human sees the slate first.** The concern was that requesting options would put model
+output in front of an external partner with no Sunreef review: a narrower exposure than a
+generate-a-draft button, since Stage 5 still gates every draft, but the same category. The constraints
+on angle text — no fabricated vessel claims (§10.4), never naming a competitor — live only in the
+`_SYSTEM` prompt, and this codebase is explicit that a prompt is a request rather than an enforcement:
+*"the model's output is untrusted, and a `maxLength` in a JSON schema is not a guarantee."* The weekly
+outreach settles it at no cost, per step 1 above.
+
+**Cost of one cycle, for §11.5's ceiling.** A pick spends four calls — angles, long, medium, short
+(`bce.cli`) — which at Opus pricing is on the order of **$0.15 per broker per cycle**. A full
+50-broker week is therefore under $10 before uniqueness-rejection retries. §11.5 notes the budget has
+no ceiling stated and that retries must be allowed for; these are the numbers to set it against, and
+they make a recurring weekly job affordable in a way §9b's earlier note feared it might not be.
+
+**OPEN — review granularity.** One pick yields three drafts, and §5 says the short form is *"a
+condensation of the long form, not a separate piece: same angle, same claims, same voice."* So does
+Stage 5 approve the package or each format independently? Approving a package is fewer decisions and
+matches how the three are actually produced; approving individually lets a reviewer keep the long form
+and reject a weak condensation, which `bce.cli`'s own reporting already distinguishes ("long draft
+kept, medium and/or short condensation..."). Decide before the review queue is built for the portal.
+
+**Still not designed here:** the queue and worker that turn a pick into a draft run, portal schema and
+row-level security policies, hosting, session handling, and how the weekly cadence in the paragraph above
+interacts with picks a broker has already made.
 
 ## 10. Compliance and ethics constraints
 
