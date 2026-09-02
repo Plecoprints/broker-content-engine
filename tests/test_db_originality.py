@@ -21,8 +21,13 @@ import pytest
 from bce import db
 
 
-def test_schema_version_bumped_to_5():
-    assert db.SCHEMA_VERSION == 5
+def test_schema_version_covers_the_fingerprint_table():
+    """`source_fingerprint` landed at version 5, so any database at 5 or later
+    has it. Pinned to `== 5` originally, which made the assertion really about
+    "nothing has changed since", and broke on the next unrelated bump (6, the
+    `excluded_keyword` blocklist). What this test is actually for is that the
+    version was raised far enough for §10.3's table to exist."""
+    assert db.SCHEMA_VERSION >= 5
 
 
 def test_source_fingerprint_table_exists_with_no_text_column():

@@ -9,7 +9,7 @@ by only ever drawing from rows already marked `qualifies=1`) both go through
 it, so the rule genuinely exists once.
 
 **Importer.** `load_bank` ingests a *real* Semrush export, not just our own
-committed `data/keyword_bank.csv`. The operator runs their own keyword
+committed `data/keyword_bank.sample.csv`. The operator runs their own keyword
 research interactively and exports a CSV; that export is the input, and it is
 assumed messy on every axis the brief called out: header names differ between
 Keyword Magic Tool / Keyword Overview / Position Tracking, the delimiter is
@@ -80,7 +80,11 @@ def qualifies(volume, difficulty) -> bool:
 
 _FIELD_ALIASES: dict[str, frozenset[str]] = {
     "phrase": frozenset({"phrase", "keyword"}),
-    "volume": frozenset({"volume", "search volume"}),
+    "volume": frozenset({
+        "volume", "search volume", "search_volume",
+        "monthly_volume", "monthly volume", "monthly search volume",
+        "avg. monthly searches", "avg monthly searches",
+    }),
     "difficulty": frozenset({
         "difficulty", "keyword difficulty", "keyword difficulty index",
         "kd", "kd %", "kd%",
@@ -88,6 +92,9 @@ _FIELD_ALIASES: dict[str, frozenset[str]] = {
     "intent": frozenset({"intent"}),
     "competitor_brand": frozenset({
         "competitor_brand", "competitor brand", "competitor",
+    }),
+    "reason": frozenset({
+        "reason", "excluded_because", "excluded because", "exclusion_reason",
     }),
 }
 
@@ -204,7 +211,7 @@ def _parse_intent_label_set(raw) -> frozenset[str] | None:
     way to ask "does this row's intent include X".
 
     Also accepts our own committed bank's single numeric code (0-3) for
-    backward compatibility, so `data/keyword_bank.csv` classifies sensibly
+    backward compatibility, so `data/keyword_bank.sample.csv` classifies sensibly
     too, not just real Semrush textual exports.
     """
     if raw is None:
@@ -637,6 +644,90 @@ def _relevance_score(angle_tokens: set[str], phrase: str) -> int:
     return len(angle_tokens & set(_tokenize(phrase)))
 
 
+# =============================================================================
+# The operator's curated exclusion bank (spec §5b "Approved and excluded
+# banks"). A blocklist, deliberately separate from the heuristic gates.
+# =============================================================================
+
+
+def normalize_phrase(raw) -> str:
+    """Casefold and collapse whitespace, so a blocklist entry matches its
+    keyword however either export happened to space or capitalise it.
+
+    Matching an operator's hand-curated exclusion against an automated import
+    on raw string equality would fail open -- the safe direction for a
+    blocklist is to match more, not fewer, spellings of the same phrase.
+    """
+    return " ".join(str(raw or "").split()).casefold()
+
+
+@dataclass(frozen=True)
+class LoadExclusionsResult:
+    """What one `load_exclusions` call did. `imported` counts rows written;
+    `skipped` carries one human-readable reason per unusable row, so nothing
+    is dropped silently -- same contract as `LoadBankResult`.
+    """
+
+    imported: int = 0
+    skipped: list[str] = field(default_factory=list)
+
+
+def load_exclusions(conn: sqlite3.Connection, csv_path: str) -> LoadExclusionsResult:
+    """Import the operator's excluded-keyword bank into `excluded_keyword`.
+
+    Idempotent on `phrase` + `database`, like `load_bank`. Only the phrase is
+    required; `reason` is recorded when the export carries one (our own bank
+    spells it `excluded_because`) purely so a human can later see *why* a
+    phrase was ruled out. Volume and difficulty columns are ignored -- an
+    excluded phrase's metrics are irrelevant by definition, which is the
+    point of curating by hand rather than by threshold.
+    """
+    text = _read_and_strip_comments(csv_path)
+    delimiter = _sniff_delimiter(text)
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+    header_map = _map_headers(reader.fieldnames)
+    if "phrase" not in header_map.values():
+        raise NoPhraseColumnError(reader.fieldnames or [])
+
+    imported = 0
+    skipped: list[str] = []
+    for line_no, raw_row in enumerate(reader, start=2):  # header is line 1
+        canon: dict[str, str] = {}
+        for raw_key, value in raw_row.items():
+            field_name = header_map.get(raw_key)
+            if field_name is not None:
+                canon[field_name] = value
+        phrase = normalize_phrase(canon.get("phrase"))
+        if not phrase:
+            skipped.append(f"line {line_no}: no keyword phrase")
+            continue
+        reason = (canon.get("reason") or "").strip() or None
+        conn.execute(
+            "INSERT INTO excluded_keyword (phrase, database, reason) "
+            "VALUES (?, ?, ?) ON CONFLICT (phrase, database) DO UPDATE SET "
+            "reason=excluded.reason",
+            (phrase, _DATABASE, reason),
+        )
+        imported += 1
+    conn.commit()
+    return LoadExclusionsResult(imported=imported, skipped=skipped)
+
+
+def excluded_phrases(conn: sqlite3.Connection) -> set[str]:
+    """Every blocked phrase, normalized, ready to test against `keyword.phrase`.
+
+    Returns an empty set when the table does not exist yet, so a database
+    created before schema version 6 degrades to "nothing blocked" rather than
+    raising -- the gate is additive, and `init_schema` creates the table on
+    the next open anyway.
+    """
+    try:
+        rows = conn.execute("SELECT phrase FROM excluded_keyword").fetchall()
+    except sqlite3.OperationalError:
+        return set()
+    return {normalize_phrase(r["phrase"]) for r in rows}
+
+
 def _ranked_eligible_keywords(
     conn: sqlite3.Connection, angle: dict | None, exclude_ids
 ) -> list[dict]:
@@ -645,13 +736,16 @@ def _ranked_eligible_keywords(
     and then phrase (ascending) so the order never depends on SQLite's row
     order or dict iteration order.
 
-    Eligible means all four independent gates pass: `qualifies=1` (clears the
+    Eligible means all five independent gates pass: `qualifies=1` (clears the
     §5b volume/difficulty thresholds), `segment_relevant=1` (is actually
     about Sunreef's segment, not a rug or a pharmacy benefit manager that
     happens to clear those thresholds), `editorial=1` (Semrush Intent
     includes Informational and excludes Transactional/Navigational --
     Commercial is retained), and `competitor_brand=0` (not a rival brand
-    name, which needs an explicit human decision this task does not build).
+    name, which needs an explicit human decision this task does not build),
+    and the phrase is absent from the operator's curated exclusion bank
+    (`excluded_keyword` -- a human's blocklist, which outranks every heuristic
+    above it and survives re-imports that would re-derive them).
 
     Long/medium/short all call this with the same `angle`, so they always get
     the *same* ranked list -- only how much of its prefix each format takes
@@ -663,8 +757,13 @@ def _ranked_eligible_keywords(
         "AND editorial=1 AND competitor_brand=0"
     ).fetchall()
     excluded = set(exclude_ids or ())
+    blocked = excluded_phrases(conn)
     angle_tokens = set(_tokenize(_angle_text(angle)))
-    candidates = [dict(r) for r in rows if r["id"] not in excluded]
+    candidates = [
+        dict(r) for r in rows
+        if r["id"] not in excluded
+        and normalize_phrase(r["phrase"]) not in blocked
+    ]
     candidates.sort(
         key=lambda row: (
             -_relevance_score(angle_tokens, row["phrase"]),
