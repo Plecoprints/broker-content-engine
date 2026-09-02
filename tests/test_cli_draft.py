@@ -350,6 +350,20 @@ class _FakeDraftClient:
         return "Short body."
 
 
+class _FakeEmbeddingClient:
+    def embed(self, text):
+        return [1.0, 0.0, 0.0]
+
+
+class _DeadEmbeddingClient:
+    """An embedding client that cannot produce a vector -- what the real one
+    degrades to with no `VOYAGE_API_KEY`, no network, or an API error.
+    """
+
+    def embed(self, text):
+        return None
+
+
 def test_draft_drives_undrafted_brokers_and_prints_a_line_per_broker(
     tmp_path, capsys, monkeypatch
 ):
@@ -360,6 +374,7 @@ def test_draft_drives_undrafted_brokers_and_prints_a_line_per_broker(
 
     monkeypatch.setattr(cli, "AngleClient", _FakeAngleClient)
     monkeypatch.setattr(cli, "DraftClient", _FakeDraftClient)
+    monkeypatch.setattr(cli, "EmbeddingClient", _FakeEmbeddingClient)
 
     rc = cli.cmd_draft(path, limit=cli.MAX_DRAFT_CALLS)
     assert rc == 0
@@ -370,6 +385,38 @@ def test_draft_drives_undrafted_brokers_and_prints_a_line_per_broker(
     drafts = conn.execute("SELECT format, status FROM draft").fetchall()
     assert {d["format"] for d in drafts} == {"long", "medium", "short"}
     assert all(d["status"] == "pending_review" for d in drafts)
+
+
+def test_draft_without_a_working_embedding_client_rejects_every_draft(
+    tmp_path, capsys, monkeypatch
+):
+    """No VOYAGE_API_KEY means uniqueness cannot be verified, and §10.3's
+    uniqueness gate is blocking. "We could not check" must not be treated as
+    "we checked and it is fine", so every draft lands `rejected` rather than
+    reaching the review queue.
+
+    This is the CLI's real behaviour with no key configured, pinned here
+    deliberately: it is the difference between a silent quality hole and an
+    obvious one.
+    """
+    path = _db(tmp_path)
+    conn = db.connect(path)
+    bid = _broker(conn, "a.invalid", "Acme")
+    _profile(conn, bid)
+
+    monkeypatch.setattr(cli, "AngleClient", _FakeAngleClient)
+    monkeypatch.setattr(cli, "DraftClient", _FakeDraftClient)
+    monkeypatch.setattr(cli, "EmbeddingClient", _DeadEmbeddingClient)
+
+    assert cli.cmd_draft(path, limit=cli.MAX_DRAFT_CALLS) == 0
+
+    conn = db.connect(path)
+    rows = conn.execute("SELECT status, passes_uniqueness, embedding FROM draft").fetchall()
+    assert rows, "drafts should still be written, just not approved"
+    assert all(r["status"] == "rejected" for r in rows)
+    assert all(r["passes_uniqueness"] == 0 for r in rows)
+    # Nothing to persist when the vector was never computed.
+    assert all(r["embedding"] is None for r in rows)
 
 
 def test_main_dispatches_draft(tmp_path):

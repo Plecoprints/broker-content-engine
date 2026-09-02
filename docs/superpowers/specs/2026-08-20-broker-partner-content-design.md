@@ -408,6 +408,16 @@ Requirements, not preferences:
 
    Voice profiles store derived features and short quotes, never full article text. Every draft's embedding is persisted so the uniqueness corpus grows monotonically — a draft rejected for similarity still counts as seen, so the system cannot oscillate between two near-identical angles.
 
+   **Resolved 2026-09-02 — how *Original* compares against prose we deliberately do not keep.** As written, the two paragraphs above contradicted each other: the *Original* gate compares a draft against "the broker's own published prose", while the privacy rule forbids storing that prose. Broker articles are fetched during profiling (`articles.collect_broker_articles`) and discarded, so the gate had nothing to run against and was never implemented.
+
+   The gate stores **shingle fingerprints, not prose**: overlapping 6-word n-grams from the broker's fetched articles, hashed, in a `source_fingerprint(broker_id, shingle_hash)` table. Near-duplication is then a containment measure between the draft's shingle set and the broker's. No recoverable text is stored, so the privacy constraint holds literally rather than by interpretation, and the gate becomes real.
+
+   Containment threshold: **0.5**. This is a first estimate and needs calibration against real drafts — it has only ever run against synthetic bodies, so treat the number as provisional until the first live run.
+
+   **Unverifiable is not the same as clean.** If the embedding call fails — no API key, network error, refusal — the uniqueness gate returns *fail*, not pass. A blocking gate that silently degrades to "fine" when it cannot check is worse than no gate, because it reports confidence it never earned. The practical consequence is that **without `VOYAGE_API_KEY` configured, every draft is rejected**, which is intended and loud rather than silent.
+
+   **`tailored_score` distinguishes zero from not-comparable.** A profile carrying a register but no statistics is a legitimate state — drafting refuses only when `register` is NULL. For such a broker the tailored score is `NULL` ("nothing to compare"), never `0.0`, and it does not block. A fabricated zero would be indistinguishable from a genuinely terrible voice match and would reject every medium and short draft for any thinly-profiled broker.
+
 7. **Asset usage rights.** Marketing-approved-for-Sunreef is not the same as licensed-for-a-third-party-to-republish. Any image or video supplied to a broker must carry explicit permission for that broker to publish it on their own site. **Resolve with the creative team while the asset library is being built (§11.3), not after.**
 4. **Factual accuracy.** Any claim about Sunreef vessels — dimensions, specs, certifications — must be verifiable against official Sunreef material. Fabricated specifications reaching a broker's blog is the highest-severity failure mode in this system.
 5. **Honest attribution in outreach.** Messages state plainly that Sunreef prepared the draft.
