@@ -6,6 +6,7 @@ from pathlib import Path
 from bce import db, discover, drafting, keywords, profile, qualify, seed
 from bce.angles import AngleClient
 from bce.draft import DraftClient
+from bce.embeddings import EmbeddingClient
 from bce.fetch import Fetcher
 from bce.llm import ProfileClient
 
@@ -268,8 +269,11 @@ def cmd_draft(db_path: str, limit: int = MAX_DRAFT_CALLS) -> int:
         return 0
     angle_client = AngleClient()
     draft_client = DraftClient()
+    embedding_client = EmbeddingClient()
     for row in rows:
-        result = drafting.draft_for_broker(conn, row["id"], angle_client, draft_client)
+        result = drafting.draft_for_broker(
+            conn, row["id"], angle_client, draft_client, embedding_client
+        )
         print(f"{row['domain']}: {_draft_label(result)}")
     return 0
 

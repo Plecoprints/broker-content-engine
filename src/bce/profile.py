@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from bce import style
 from bce.articles import MIN_ARTICLE_CHARS, collect_broker_articles
 from bce.detectors import find_editorial_urls
+from bce.fingerprint import shingle_hashes
 
 #: Corpus plausibility floor. A profile is only worth storing if the text behind
 #: it could plausibly be a broker's writing. One article's worth (see
@@ -62,6 +63,27 @@ def _clamp_list(value) -> list[str]:
     return clamped
 
 
+def _persist_source_fingerprints(conn: sqlite3.Connection, broker_id: int, texts: list[str]) -> None:
+    """Shingle-hash `texts` and store the hashes for Gate 3 (spec §10.3
+    *Original* -- see `bce.fingerprint`'s module docstring for why hashes,
+    never the text itself, and the spec doc's §10.3 amendment).
+
+    Called with the *same* article texts `profile_broker` already fetched
+    and is about to discard -- nothing here re-fetches, and nothing beyond
+    this function ever sees `texts` again. `INSERT OR IGNORE` against the
+    table's `(broker_id, shingle_hash)` primary key makes this naturally
+    idempotent: a re-profile re-derives the same hashes for unchanged
+    articles and adds nothing new, rather than duplicating rows.
+    """
+    for text in texts:
+        for shingle_hash in shingle_hashes(text):
+            conn.execute(
+                "INSERT OR IGNORE INTO source_fingerprint (broker_id, shingle_hash) "
+                "VALUES (?, ?)",
+                (broker_id, shingle_hash),
+            )
+
+
 def profile_broker(
     conn: sqlite3.Connection, broker_id: int, fetcher, profile_client
 ) -> ProfileResult:
@@ -82,6 +104,12 @@ def profile_broker(
     texts, paragraph_lists = collect_broker_articles(fetcher, find_editorial_urls(html, url))
     if sum(len(a) for a in texts) < MIN_CORPUS_CHARS:
         return ProfileResult(written=False)
+
+    # Deterministic hashing of already-fetched text, not an API call --
+    # independent of whether the classify() call below succeeds, so this
+    # happens unconditionally once there is a corpus at all (spec §10.3
+    # amendment; see `bce.fingerprint`).
+    _persist_source_fingerprints(conn, broker_id, texts)
 
     judgement = profile_client.classify(texts)
     if not isinstance(judgement, dict):

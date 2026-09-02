@@ -15,6 +15,23 @@ from bce import db, discover, drafting
 # --- fakes (mirror test_drafting.py's, with keywords captured) --------------
 
 
+class FakeEmbeddingClient:
+    """Mirrors `bce.embeddings.EmbeddingClient`'s public shape (`.embed`).
+
+    Defined locally rather than imported from test_drafting.py: these tests
+    are about keyword persistence, not the gates, so they want an embedding
+    client that is deliberately boring. A constant vector means the first
+    draft in each format bucket has nothing to collide with and the gates
+    stay out of the way of what is being asserted here.
+    """
+
+    def __init__(self, vector=(1.0, 0.0, 0.0)):
+        self.vector = vector
+
+    def embed(self, text):
+        return list(self.vector)
+
+
 class FakeAngleClient:
     def __init__(self, angles=None):
         self.angles = [] if angles is None else angles
@@ -131,7 +148,7 @@ def test_draft_keywords_are_persisted_for_the_long_draft():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     long_draft_id = conn.execute(
         "SELECT id FROM draft WHERE format='long'"
@@ -153,7 +170,7 @@ def test_draft_keywords_persisted_for_medium_and_short_are_a_subset_of_longs():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     def _keyword_ids(fmt):
         draft_id = conn.execute(
@@ -186,7 +203,7 @@ def test_draft_clients_receive_the_same_selection_that_gets_persisted():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     sent_primary_phrase = draft_client.long_calls[0]["keywords"]["primary"]["phrase"]
     long_draft_id = conn.execute("SELECT id FROM draft WHERE format='long'").fetchone()["id"]
@@ -213,7 +230,7 @@ def test_draft_writes_normally_when_nothing_qualifies():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is True
     assert conn.execute("SELECT COUNT(*) AS c FROM draft").fetchone()["c"] == 3
@@ -228,7 +245,7 @@ def test_draft_writes_normally_when_only_competitor_gated_keywords_exist():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is True
     assert conn.execute("SELECT COUNT(*) AS c FROM draft_keyword").fetchone()["c"] == 0
@@ -244,7 +261,7 @@ def test_long_failure_persists_no_keywords_at_all():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient(long_body=None)
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is False
     assert conn.execute("SELECT COUNT(*) AS c FROM draft").fetchone()["c"] == 0
@@ -258,7 +275,7 @@ def test_medium_failure_still_persists_keywords_for_long_and_short():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient(medium_body=None)
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is True
     assert result.medium_written is False

@@ -61,6 +61,29 @@ class FakeDraftClient:
         return self.short_body
 
 
+class FakeEmbeddingClient:
+    """Mirrors `bce.embeddings.EmbeddingClient`'s public shape (`.embed`).
+    Returns a caller-controlled vector for *every* input by default -- fine
+    for tests that only care that gate columns get populated -- but a test
+    that needs to force a specific cosine similarity (e.g. "these two
+    drafts collide") can pass `vectors_by_body` to hand back a different
+    vector per exact body string.
+    """
+
+    def __init__(self, vector=(1.0, 0.0, 0.0), vectors_by_body=None):
+        self.vector = vector
+        self.vectors_by_body = vectors_by_body or {}
+        self.calls = []
+
+    def embed(self, text):
+        self.calls.append(text)
+        if text in self.vectors_by_body:
+            return list(self.vectors_by_body[text])
+        if self.vector is None:
+            return None
+        return list(self.vector)
+
+
 ANGLE = {
     "title": "Provisioning for a Two-Week Mediterranean Crossing",
     "premise": "What owners actually pack, versus what the checklists say.",
@@ -136,7 +159,7 @@ def test_clients_receive_parsed_structures_not_json_strings():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert len(angle_client.calls) == 1
     angle_profile = angle_client.calls[0]["profile"]
@@ -173,7 +196,7 @@ def test_malformed_json_columns_degrade_instead_of_raising():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is True
     profile = angle_client.calls[0]["profile"]
@@ -191,7 +214,7 @@ def test_no_voice_profile_writes_nothing_and_makes_no_api_call():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is False
     assert angle_client.calls == []
@@ -209,7 +232,7 @@ def test_empty_judgement_profile_is_treated_as_no_usable_profile():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is False
     assert angle_client.calls == []
@@ -222,7 +245,7 @@ def test_empty_angles_writes_nothing_and_makes_no_further_calls():
     angle_client = FakeAngleClient(angles=[])
     draft_client = FakeDraftClient()
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is False
     assert len(angle_client.calls) == 1
@@ -241,7 +264,7 @@ def test_none_long_draft_writes_nothing_and_skips_medium_and_short_calls():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient(long_body=None)
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is False
     assert len(draft_client.long_calls) == 1
@@ -262,7 +285,7 @@ def test_none_medium_draft_still_keeps_the_good_long_and_short_drafts():
         long_body="A full article body.", medium_body=None, short_body="Short blurb."
     )
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is True
     assert result.medium_written is False
@@ -280,7 +303,7 @@ def test_none_short_draft_still_keeps_the_good_long_and_medium_drafts():
         long_body="A full article body.", medium_body="A regular post.", short_body=None
     )
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is True
     assert result.medium_written is True
@@ -304,7 +327,7 @@ def test_none_medium_and_none_short_still_keeps_the_good_long_draft():
         long_body="A full article body.", medium_body=None, short_body=None
     )
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is True
     assert result.medium_written is False
@@ -325,7 +348,7 @@ def test_medium_and_short_are_both_attempted_even_though_short_is_independent():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient(long_body="Long body.")
 
-    drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert len(draft_client.medium_calls) == 1
     assert len(draft_client.short_calls) == 1
@@ -342,7 +365,7 @@ def test_all_three_drafts_persist_as_three_rows_under_one_angle():
         long_body="Long body.", medium_body="Medium post.", short_body="Short blurb."
     )
 
-    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    result = drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     assert bool(result) is True
     assert result.medium_written is True
@@ -360,7 +383,19 @@ def test_all_three_drafts_persist_as_three_rows_under_one_angle():
     assert formats == {"long", "medium", "short"}
     for d in drafts:
         assert d["angle_id"] == angles[0]["id"]
-        assert d["status"] == "pending_review"
+        # Changed assertion (was `== "pending_review"` unconditionally):
+        # the three originality gates (spec §10.3) now run before status is
+        # decided, and these trivially short fake bodies ("Medium post.",
+        # "Short blurb.") are nowhere near this broker's typical_word_count
+        # (850) -- Gate 2 legitimately rejects them. "pending_review" vs.
+        # "rejected" is exactly the gate outcome this file is not testing
+        # (see test_originality.py for that, and
+        # test_gate_columns_are_populated_on_every_persisted_draft /
+        # test_medium_and_short_gate_rejection_still_lands_a_row below for
+        # this module's own coverage of it) -- this test's job is only to
+        # confirm three rows persist under one angle, so it accepts either
+        # legitimate terminal state and never "sent".
+        assert d["status"] in ("pending_review", "rejected")
         assert d["reviewed_by"] is None
 
 
@@ -370,7 +405,7 @@ def test_nothing_ever_writes_status_sent():
     angle_client = FakeAngleClient(angles=[ANGLE])
     draft_client = FakeDraftClient()
 
-    drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     statuses = {r["status"] for r in conn.execute("SELECT status FROM draft")}
     assert "sent" not in statuses
@@ -406,7 +441,7 @@ def test_picks_the_best_scoring_angle():
     angle_client = FakeAngleClient(angles=[low, high])
     draft_client = FakeDraftClient()
 
-    drafting.draft_for_broker(conn, bid, angle_client, draft_client)
+    drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
 
     stored = conn.execute("SELECT title FROM angle").fetchone()
     assert stored["title"] == "High"

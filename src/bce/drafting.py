@@ -17,6 +17,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from bce import keywords as keyword_selection
+from bce import originality
 from bce.angles import best_angle
 
 
@@ -105,8 +106,73 @@ def _persist_draft_keywords(conn: sqlite3.Connection, draft_id: int, selection: 
         )
 
 
+def _insert_gated_draft(
+    conn: sqlite3.Connection,
+    *,
+    angle_id: int,
+    broker_id: int,
+    body: str,
+    fmt: str,
+    profile: dict,
+    embedding_client,
+    keywords,
+) -> int:
+    """Run the three §10.3 gates for one draft, then persist it with their
+    verdicts, and return the new draft's id.
+
+    Gates run **before** the INSERT, never after. `originality.check_uniqueness`
+    compares against every persisted draft in this format bucket, so a draft
+    inserted first would find itself and score a cosine similarity of 1.0 --
+    every draft would fail as a duplicate of itself.
+
+    The row is written whatever the verdict, and the embedding is stored even
+    when the draft is rejected. That is spec §10.3's requirement that "a draft
+    rejected for similarity still counts as seen, so the system cannot
+    oscillate between two near-identical angles" -- a rejected draft that
+    vanished from the corpus would let the next run regenerate the same thing.
+    A draft failing any blocking gate lands `status='rejected'` and so never
+    reaches the review queue.
+    """
+    gates = originality.run_gates(
+        conn,
+        broker_id=broker_id,
+        format=fmt,
+        body=body,
+        profile=profile,
+        embedding_client=embedding_client,
+    )
+    cursor = conn.execute(
+        "INSERT INTO draft (angle_id, body_md, word_count, status, format, "
+        "passes_uniqueness, max_similarity, most_similar_draft_id, embedding, "
+        "passes_tailored, tailored_score, passes_originality, "
+        "originality_overlap) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            angle_id,
+            body,
+            len(body.split()),
+            "pending_review" if gates.passes else "rejected",
+            fmt,
+            int(gates.passes_uniqueness),
+            gates.max_similarity,
+            gates.most_similar_draft_id,
+            json.dumps(gates.embedding) if gates.embedding is not None else None,
+            int(gates.passes_tailored),
+            gates.tailored_score,
+            int(gates.passes_originality),
+            gates.originality_overlap,
+        ),
+    )
+    draft_id = cursor.lastrowid
+    _persist_draft_keywords(conn, draft_id, keywords)
+    return draft_id
+
+
 def draft_for_broker(
-    conn: sqlite3.Connection, broker_id: int, angle_client, draft_client
+    conn: sqlite3.Connection,
+    broker_id: int,
+    angle_client,
+    draft_client,
+    embedding_client,
 ) -> DraftResult:
     """Propose angles, write all three draft formats, and persist them.
 
@@ -195,31 +261,43 @@ def draft_for_broker(
     )
     angle_id = cursor.lastrowid
 
-    long_cursor = conn.execute(
-        "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
-        "VALUES (?,?,?,?,?)",
-        (angle_id, long_body, len(long_body.split()), "pending_review", "long"),
+    _insert_gated_draft(
+        conn,
+        angle_id=angle_id,
+        broker_id=broker_id,
+        body=long_body,
+        fmt="long",
+        profile=profile,
+        embedding_client=embedding_client,
+        keywords=long_keywords,
     )
-    _persist_draft_keywords(conn, long_cursor.lastrowid, long_keywords)
 
     medium_written = False
     if medium_body:
-        medium_cursor = conn.execute(
-            "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
-            "VALUES (?,?,?,?,?)",
-            (angle_id, medium_body, len(medium_body.split()), "pending_review", "medium"),
+        _insert_gated_draft(
+            conn,
+            angle_id=angle_id,
+            broker_id=broker_id,
+            body=medium_body,
+            fmt="medium",
+            profile=profile,
+            embedding_client=embedding_client,
+            keywords=medium_keywords,
         )
-        _persist_draft_keywords(conn, medium_cursor.lastrowid, medium_keywords)
         medium_written = True
 
     short_written = False
     if short_body:
-        short_cursor = conn.execute(
-            "INSERT INTO draft (angle_id, body_md, word_count, status, format) "
-            "VALUES (?,?,?,?,?)",
-            (angle_id, short_body, len(short_body.split()), "pending_review", "short"),
+        _insert_gated_draft(
+            conn,
+            angle_id=angle_id,
+            broker_id=broker_id,
+            body=short_body,
+            fmt="short",
+            profile=profile,
+            embedding_client=embedding_client,
+            keywords=short_keywords,
         )
-        _persist_draft_keywords(conn, short_cursor.lastrowid, short_keywords)
         short_written = True
 
     conn.commit()

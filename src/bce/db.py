@@ -3,7 +3,7 @@ import sqlite3
 
 SCHEMA_TABLES = (
     "broker", "voice_profile", "angle", "draft", "draft_asset", "outcome",
-    "keyword", "draft_keyword",
+    "keyword", "draft_keyword", "source_fingerprint",
 )
 
 #: Bumped whenever the shape below changes. Stored in `PRAGMA user_version` so
@@ -20,7 +20,18 @@ SCHEMA_TABLES = (
 #: no rewrite of anything that already exists -- `CREATE TABLE IF NOT EXISTS`
 #: in `_SCHEMA` below is sufficient for an old-shaped database to gain them,
 #: since neither table previously existed in any shape to migrate away from.
-SCHEMA_VERSION = 4
+#: Bumped to 5 for spec §10.3's three originality gates. `draft` gains
+#: `passes_tailored` / `tailored_score` (Gate 2 -- "Tailored" -- had no
+#: column at all: `passes_uniqueness`/`max_similarity`/`most_similar_draft_id`
+#: /`embedding` belong to Gate 1 "Unique", and `passes_originality` was
+#: already named for Gate 3 "Original") and `originality_overlap` (Gate 3's
+#: collision figure, the containment-based counterpart to Gate 1's
+#: `max_similarity`). A brand-new table, `source_fingerprint`, backs Gate 3
+#: -- see `bce.fingerprint`'s module docstring for why it stores shingle
+#: hashes and not text. Purely additive (new columns via `ALTER TABLE ADD
+#: COLUMN`, a new table via `CREATE TABLE IF NOT EXISTS`), so no rebuild is
+#: needed this time, unlike version 3's format-CHECK migration.
+SCHEMA_VERSION = 5
 
 #: Columns added to already-created tables after their first release. Applied
 #: additively by `init_schema` via ALTER TABLE, in declaration order.
@@ -38,6 +49,20 @@ ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
         "most_similar_draft_id": "INTEGER",
         "passes_originality": "INTEGER",
         "embedding": "TEXT",
+        # Spec §10.3 Gate 2 ("Tailored"): register/structure match against
+        # this broker's own voice_profile, scored in `bce.originality.
+        # score_tailored`. Recorded for every format (spec v0.6 §5: "compute
+        # and record the score"), but only *enforced* -- see
+        # `bce.originality.TAILORED_BLOCKING_FORMATS` -- for medium/short;
+        # long is never blocked on it.
+        "passes_tailored": "INTEGER",
+        "tailored_score": "REAL",
+        # Spec §10.3 Gate 3 ("Original"): the containment figure `bce.
+        # originality.check_original` computed against this broker's
+        # `source_fingerprint` rows -- the counterpart to Gate 1's
+        # `max_similarity`, so a human sees *how much* overlap was found,
+        # not just pass/fail.
+        "originality_overlap": "REAL",
     },
     # Migrates a database created before the table was corrected to match
     # spec §8 (F5): the original shape was
@@ -202,6 +227,23 @@ CREATE TABLE IF NOT EXISTS draft_keyword (
 -- forgets to check.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_draft_keyword_one_primary
     ON draft_keyword (draft_id) WHERE role = 'primary';
+
+-- spec §10.3 Gate 3 ("Original"): shingle-hash fingerprints of a broker's
+-- own published prose, populated during profiling
+-- (`bce.profile.profile_broker`) from the article text `bce.articles.
+-- collect_broker_articles` fetches -- the same text that is discarded
+-- everywhere else, per spec §10.3's "never full article text". Deliberately
+-- has NO text/prose column of any kind: `shingle_hash` is a one-way hash
+-- (`bce.fingerprint.shingle_hashes`), so this table cannot be used to
+-- reconstruct what a broker actually wrote, only to measure overlap against
+-- it. `(broker_id, shingle_hash)` as the primary key makes the table a set
+-- per broker -- the same shingle recurring across articles, or a re-profile
+-- re-deriving the same hash, is a no-op, not a duplicate row.
+CREATE TABLE IF NOT EXISTS source_fingerprint (
+    broker_id     INTEGER NOT NULL REFERENCES broker(id),
+    shingle_hash  INTEGER NOT NULL,
+    PRIMARY KEY (broker_id, shingle_hash)
+);
 """
 
 
