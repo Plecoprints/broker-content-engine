@@ -37,7 +37,8 @@ def _tri(value):
 
 def _save(conn, broker_id, *, qualified, reason, robots_allowed,
           affinity, evidence, segment_evidence, has_editorial,
-          has_newsletter, newsletter_evidence, editorial_last_post=None):
+          has_newsletter, newsletter_evidence, editorial_last_post=None,
+          visible_text_chars=None):
     conn.execute(
         "UPDATE broker SET qualified=?, qualified_reason=?, robots_allowed=?, "
         "sunreef_affinity=?, affinity_evidence=?, segment_evidence=?, "
@@ -51,8 +52,35 @@ def _save(conn, broker_id, *, qualified, reason, robots_allowed,
         ),
     )
     conn.commit()
-    return {"qualified": qualified, "reason": reason}
+    # `visible_text_chars` is returned, never stored: it describes how well we
+    # could *read* the page, not a fact about the broker, and the caller uses
+    # it only to warn that a rejection may be a rendering artefact.
+    return {
+        "qualified": qualified,
+        "reason": reason,
+        "visible_text_chars": visible_text_chars,
+        "render_suspect": (
+            not qualified
+            and visible_text_chars is not None
+            and visible_text_chars < RENDER_SUSPICION_CHARS
+        ),
+    }
 
+
+#: Below this much visible text on a page that fetched 200 OK, the verdict is
+#: not trustworthy and the operator should look by hand.
+#:
+#: Spec §7 lists Playwright for "JS-rendered sites (many broker sites are
+#: SPA)", but it is not installed and nothing references it: `Fetcher` is
+#: httpx only, so a client-rendered site yields its shell and almost no
+#: visible text. Every downstream detector then reads an empty page --
+#: `detect_max_length_ft` finds no footage and the broker is recorded
+#: `below_length_threshold`, which reads as "too small for us" when the truth
+#: is "we could not see the page". That is the one wrong conclusion in this
+#: stage that would silently remove real brokers from the shortlist, so it is
+#: surfaced rather than inferred. A real brokerage homepage carries thousands
+#: of characters; 500 is a generous floor for "we saw essentially nothing".
+RENDER_SUSPICION_CHARS = 500
 
 #: Cap on how many editorial URLs `_editorial_recency` will fetch per broker.
 #: `find_editorial_urls` returns DOM order, not freshness order, so a nav
@@ -147,6 +175,7 @@ def qualify_broker(conn: sqlite3.Connection, broker_id: int, fetcher) -> dict:
         segment_evidence=segment_evidence, has_editorial=has_editorial,
         has_newsletter=has_newsletter, newsletter_evidence=newsletter_evidence,
         editorial_last_post=editorial_last_post,
+        visible_text_chars=len(text),
     )
 
     if length_ft is None or length_ft < MIN_LENGTH_FT:

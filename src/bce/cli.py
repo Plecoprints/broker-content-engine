@@ -152,9 +152,30 @@ def cmd_qualify(db_path: str, limit: int = DEFAULT_QUALIFY_LIMIT) -> int:
     db.init_schema(conn)
     fetcher = Fetcher()
     rows = discover.unqualified_brokers(conn, limit)
+    suspect = 0
     for row in rows:
         verdict = qualify.qualify_broker(conn, row["id"], fetcher)
-        print(f"{row['domain']}: {verdict['reason']}")
+        line = f"{row['domain']}: {verdict['reason']}"
+        if verdict.get("render_suspect"):
+            suspect += 1
+            line += (
+                f"  [!] only {verdict['visible_text_chars']} chars of visible text"
+                " -- likely client-side rendered, so this verdict is about what we"
+                " could read, not about the broker. Check by hand."
+            )
+        print(line)
+    if suspect:
+        # Loud, and separate from the per-row note: a run where several
+        # brokers were unreadable is a run whose shortlist is wrong, and the
+        # operator has to know that before acting on it (spec §7 lists
+        # Playwright for exactly these sites; it is not built).
+        print(
+            f"\n{suspect} of {len(rows)} pages returned almost no visible text."
+            " Their verdicts are unreliable -- open each one in a browser before"
+            " accepting a rejection. If many broker sites are client-side"
+            " rendered, rendered fetching (spec §7's Playwright) is the fix, and"
+            " it is not built."
+        )
     return 0
 
 
