@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from bce import db, discover, keywords
+from bce import db, discover, keywords, originality
 from bce.cli import MAX_BROKERS
 
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -158,6 +158,7 @@ def create_app(db_path: str) -> FastAPI:
                 "short_keywords": _keywords_for_draft(conn, short_draft),
                 "max_difficulty": keywords.MAX_DIFFICULTY,
                 "min_volume": keywords.MIN_VOLUME,
+                "uniqueness_threshold": originality.UNIQUENESS_THRESHOLD,
                 **_flash(request),
             },
         )

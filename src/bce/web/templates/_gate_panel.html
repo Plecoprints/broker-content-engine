@@ -1,0 +1,106 @@
+{#
+  Originality gate panel (spec §10.3): the three blocking checks a draft must
+  pass before it may enter the review queue, with the figures behind each
+  verdict.
+
+  ADMIN-ONLY, and deliberately not shared with the broker portal (§9b) the way
+  `_keyword_panel.html` is. "Collided at 0.91 with draft #14" is internal
+  quality assurance -- it is exactly what an operator needs at review and
+  exactly what would undermine a broker's confidence in a draft they were
+  never meant to see the workings of.
+
+  Reads the persisted verdict columns straight off the draft row, so it shows
+  what was actually recorded at drafting time -- never a live recomputation,
+  which could disagree with the decision the row was filed under.
+
+  Call as: {{ gate_panel(draft, uniqueness_threshold) }}
+#}
+{% macro gate_panel(draft, uniqueness_threshold) %}
+  {% if draft %}
+    <div class="gate-panel">
+      <h3>Originality gates</h3>
+
+      {% if draft["status"] == "rejected" %}
+        <p class="muted">
+          This draft did not pass and was <strong>not</strong> queued for
+          review. It is kept, and its fingerprint still counts against future
+          drafts, so the same piece cannot be regenerated and quietly accepted.
+        </p>
+      {% endif %}
+
+      <table>
+        <thead>
+          <tr><th>Gate</th><th>Verdict</th><th>Detail</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Unique</td>
+            <td>
+              {% if draft["passes_uniqueness"] %}
+                <span class="pill pill-qualified">pass</span>
+              {% else %}
+                <span class="pill pill-rejected">fail</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if draft["max_similarity"] is not none %}
+                Closest match {{ "%.3f"|format(draft["max_similarity"]) }}
+                (fails at {{ uniqueness_threshold }})
+                {% if draft["most_similar_draft_id"] is not none %}
+                  &mdash; draft #{{ draft["most_similar_draft_id"] }}
+                {% endif %}
+              {% elif draft["embedding"] %}
+                <span class="muted">Nothing else in this format to compare against yet.</span>
+              {% else %}
+                <span class="muted">Could not be checked &mdash; no embedding was
+                produced. Unverified is not treated as clean.</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td>Tailored</td>
+            <td>
+              {% if draft["tailored_score"] is none %}
+                <span class="pill pill-pending">n/a</span>
+              {% elif draft["passes_tailored"] %}
+                <span class="pill pill-qualified">pass</span>
+              {% else %}
+                <span class="pill pill-rejected">fail</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if draft["tailored_score"] is none %}
+                <span class="muted">Not comparable &mdash; this broker&rsquo;s profile
+                has no writing statistics to score against.</span>
+              {% else %}
+                Voice match {{ "%.3f"|format(draft["tailored_score"]) }}
+                {% if draft["format"] == "long" %}
+                  <span class="muted">&mdash; recorded only. A pillar article is not
+                  held to the broker&rsquo;s usual length.</span>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td>Original</td>
+            <td>
+              {% if draft["passes_originality"] %}
+                <span class="pill pill-qualified">pass</span>
+              {% else %}
+                <span class="pill pill-rejected">fail</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if draft["originality_overlap"] is not none %}
+                {{ "%.3f"|format(draft["originality_overlap"]) }} overlap with
+                this broker&rsquo;s own published writing
+              {% else %}
+                <span class="muted">No fingerprints stored for this broker yet.</span>
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endmacro %}
