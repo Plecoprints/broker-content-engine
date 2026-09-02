@@ -120,7 +120,31 @@ The short form is a condensation of the long form, not a separate piece: same an
 
 **Stage 6 — Outreach.** Produces a personalized, relationship-agnostic message plus the draft, for a human to send. The system does not send email.
 
-**Stage 7 — Measure.** UTM-tagged links, referral traffic by broker, engagement, inquiries attributed to broker referral.
+**Stage 7 — Measure.** **Revised 2026-09-02: measurement without attribution.** The earlier wording
+here — "UTM-tagged links, referral traffic by broker, inquiries attributed to broker referral" —
+contradicted §1, which settled and closed the backlink question: links are welcome if a broker chooses
+to give one, and are **not a goal, not measured, and not designed for**. Sunreef supplies copy and
+images for a partner to paste into their own channels; it does not publish on their behalf and does not
+control the published URL, so there is nothing to tag and no click to attribute. A UTM convention would
+have required asking for a link, which is the thing §1 decided not to do.
+
+Three signals remain, and they measure what this system actually controls:
+
+| Signal | Mechanism | What it tells you |
+|---|---|---|
+| **Collection** | `portal_event` — viewed / copied / downloaded (§9b) | Leading indicator: did the partner take it |
+| **Publication** | Re-crawl the broker's editorial section (Stage 2 already does) and test shingle containment against drafts delivered to them (§9b) | The outcome. Works with no link, no tag, and survives the broker editing the piece — which they will, and should |
+| **Return** | Does the broker come back next cycle and pick another angle | The strongest signal of value *to them*, and the one that predicts whether this compounds |
+
+**What is deliberately not measured, so nobody re-adds it:** click-through, referral sessions, and
+inquiries attributed to a broker. These are unavailable by construction, not by omission. The
+consequence must be stated plainly wherever this programme is presented: **Sunreef cannot produce a
+referral-ROI figure for this channel.** What it can produce is a count of partners publishing Sunreef
+editorial under their own masthead, and whether they keep coming back.
+
+`outcome`'s `utm_campaign`, `referral_sessions` and `inquiries` columns (§8) are consequently **never
+populated**. They are left in place rather than migrated away: they cost nothing, and they are exactly
+what would be needed if the §1 decision were ever reopened. Nothing should read them as data.
 
 ## 5b. Keyword targeting (Semrush)
 
@@ -675,7 +699,7 @@ and §10.7 asset rights all stand unchanged.
 3. **Asset library.** Creative team is building a Dropbox of marketing-approved images/video with API access, 1–2 weeks out. Two things needed from them: the API shape, and **written confirmation that brokers may republish the assets** (§10.7). Build proceeds against `NullAssetProvider` meanwhile.
 4. **Languages.** Sunreef sells into non-English markets. *Assumed: English-only for v1.*
 5. **Claude API budget.** No ceiling stated. *Assumed: needs a cap before any looped execution.* Note the uniqueness gate (§10.3) causes rejected drafts to be regenerated, so budget must allow for retries, not just one draft per broker.
-6. **v1 success definition.** Proposed: **3 brokers publish, and referral traffic is measurable in GA4 within 90 days.** Needs agreement — this is the number the project gets judged on.
+6. **v1 success definition.** **Revised 2026-09-02.** Was *"3 brokers publish, and referral traffic is measurable in GA4 within 90 days"* — unachievable as written, because referral traffic requires a link and §1 closed that question (see Stage 7). Now: **3 brokers publish at least one delivered piece within 90 days, detected by fingerprint match (§9b), and at least 2 of them return for a second angle.** Publication is the outcome; the return is what says it was worth their time rather than merely tolerable. Still needs agreement — this is the number the project gets judged on, and it is now a number the project can actually produce.
 
 ## 12. Risks
 

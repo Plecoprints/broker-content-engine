@@ -68,6 +68,16 @@ bce draft        # spends real API budget; capped at 7 brokers per run
   only once the gates have been seen working — removing a control before it has ever been
   measured is not the same as trusting it.
 
+- **There is no click attribution, by design, and that has a reporting consequence.** §1
+  closed the backlink question — links are welcome if a broker offers one, but are not a goal
+  and not designed for — because Sunreef supplies copy for a partner to paste into their own
+  channels and never controls the published URL. Stage 7 and §11.6 were rewritten 2026-09-02
+  to match: success is **3 brokers publishing a delivered piece within 90 days, detected by
+  fingerprint match, and 2 of them returning for a second angle**. Never promise a
+  referral-ROI figure for this channel — it cannot be produced. `outcome`'s `utm_campaign`,
+  `referral_sessions` and `inquiries` columns are never populated; they are kept only in case
+  that decision is reopened.
+
 - **Long drafts are not blocked on voice match.** Voice matching is binding for medium and
   short, advisory for the 2,000–2,300 word pillar. No broker's typical article length is
   near 2,000 words, so a blocking check would fail every pillar.
