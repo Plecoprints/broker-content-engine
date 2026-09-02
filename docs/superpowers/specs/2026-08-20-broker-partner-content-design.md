@@ -443,7 +443,7 @@ who sees model output first.
 bypassed."* A Generate button that shows its output to the broker drives straight through the one gate
 this spec protects hardest, and it does so on the default path, not in a corner case. The risk behind
 that gate is the only one §12 rates **Critical**: fabricated Sunreef specifications published
-externally. §10.4 requires every claim about a vessel to be verifiable against official material, and
+externally. §10.4 now forbids any specific claim about a named Sunreef vessel outright — mechanically, in `bce.claims` — rather than requiring each be verified against official material, which is the form that rule took when this paragraph was written, and
 Stage 5 is the only thing standing between the model and a broker's blog.
 
 **The flow:**
@@ -599,6 +599,15 @@ Requirements, not preferences:
 
 ### 10.9 The gate ensemble, and what replaced the human approval
 
+**A §10 edit is not finished until the circulated material matches it.** This section's first
+revision left three already-distributed documents — `docs/leadership-brief.html`,
+`docs/content-engine-brief.md` and the broker-facing `docs/broker-channel-onepager.html` — promising
+that "a human still approves every single piece", four hours after that control was removed. An
+independent evaluation on 2026-09-02 found it. Telling leadership about a control that no longer
+exists forfeits the credit earned by every conservative decision in this repository; telling a
+*broker* is worse, because it is the assurance they would rely on. The decks are versioned with this
+document.
+
 Revised 2026-09-02. **Stage 5's blocking human approval is removed.** A draft ships when it clears the
 ensemble below; the operator reads a sample afterwards rather than approving each item.
 
@@ -672,16 +681,16 @@ and §10.7 asset rights all stand unchanged.
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Fabricated Sunreef specs published externally | **Critical** | §10.4 verification gate; human review |
+| Fabricated Sunreef specs published externally | **Critical** | §10.4 no-product-claims gate — `bce.claims`, mechanical, blocking for every format, with its own evasion path recorded as a passing test; plus 100% operator sampling for the first pilot run (§10.9). **The former mitigations named here — a §10.4 verification gate and Stage 5 human review — no longer exist** (revised 2026-09-02) |
 | Undisclosed advertising exposure | **High — now universal** | §10.1 legal review, blocking before first send |
-| Zero broker uptake | High | Editorial value test (§3); affinity-ordered queue; manual pilot (§13) before code |
+| Zero broker uptake | High | Affinity-ordered queue; §13's manual pilot before code — **not yet run**. The editorial value test (§3) is now a §10.9 judge gate and is **not built**, so this risk is presently mitigated by sequencing alone |
 | Perceived as spam; relationships damaged | High | §6 cap; human-sent, personalized, relationship-agnostic copy |
 | Cold pitch lands on an unrecognized existing partner | Medium | §10.6 relationship-agnostic copy; affinity signal catches the detectable cases |
 | No review owner → pipeline stalls | High | §11.1 — resolve before build completes |
 | Broker sites block crawler | Medium | Respect robots.txt; degrade to manual profiling |
 | Drafts converge — 30 near-identical catamaran articles | **High** | §10.3 uniqueness gate; embeddings persisted so rejected drafts still count as seen |
 | Assets republished without broker usage rights | High | §10.7 — settle rights with creative team before first asset ships |
-| Voice mimicry reads as inauthentic | Medium | Human review; brokers edit freely |
+| Voice mimicry reads as inauthentic | Medium | Tailored gate (§10.3, blocking for medium/short); operator sampling (§10.9); brokers edit freely |
 
 ## 13. Suggested first milestone
 
