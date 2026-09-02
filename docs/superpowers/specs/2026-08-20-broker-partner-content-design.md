@@ -625,9 +625,9 @@ because category content never needed them.
 | **Unique** (§10.3) | Every draft ever produced | Embedding cosine, threshold 0.88 | Mechanical |
 | **Tailored** (§10.3) | This broker's voice profile | Register/structure score | Mechanical |
 | **Original** (§10.3) | The broker's own prose | Shingle containment, threshold 0.5 | Mechanical |
-| **No product claims** (§10.4) | Named Sunreef models | Refuses any specific figure or certification attached to a Sunreef vessel | Mechanical |
-| **Editorial value** (§3) | The broker's own blog | Judge: *strip every Sunreef mention — is this still worth publishing here?* | Judge |
-| **Brand quality** | Sunreef's standards | Judge: does this represent the brand at the quality we would sign? | Judge |
+| **No product claims** (§10.4) | Named Sunreef models | Refuses any specific figure or certification attached to a Sunreef vessel — `bce.claims`, blocking for every format | Mechanical, **built** |
+| **Editorial value** (§3) | The broker's own blog | Judge: *strip every Sunreef mention — is this still worth publishing here?* | Judge, not built |
+| **Brand quality** | Sunreef's standards | Judge: does this represent the brand at the quality we would sign? | Judge, not built |
 
 **Every gate fails closed.** §10.3 already sets the rule — *unverifiable is not the same as clean* —
 and it now governs all six. A judge call that errors, times out, or refuses is a **reject**, never a

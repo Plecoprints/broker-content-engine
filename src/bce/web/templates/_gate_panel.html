@@ -1,7 +1,7 @@
 {#
-  Originality gate panel (spec §10.3): the three blocking checks a draft must
-  pass before it may enter the review queue, with the figures behind each
-  verdict.
+  Quality gate panel (spec §10.3, §10.9): the blocking checks a draft must
+  pass before it is delivered, with the figures behind each verdict. Three
+  originality gates plus §10.4's no-product-claims gate.
 
   ADMIN-ONLY, and deliberately not shared with the broker portal (§9b) the way
   `_keyword_panel.html` is. "Collided at 0.91 with draft #14" is internal
@@ -18,7 +18,7 @@
 {% macro gate_panel(draft, uniqueness_threshold) %}
   {% if draft %}
     <div class="gate-panel">
-      <h3>Originality gates</h3>
+      <h3>Quality gates</h3>
 
       {% if draft["status"] == "rejected" %}
         <p class="muted">
@@ -96,6 +96,42 @@
                 this broker&rsquo;s own published writing
               {% else %}
                 <span class="muted">No fingerprints stored for this broker yet.</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td>No product claims</td>
+            <td>
+              {% if draft["passes_no_product_claims"] is none %}
+                <span class="pill pill-pending">n/a</span>
+              {% elif draft["passes_no_product_claims"] %}
+                <span class="pill pill-qualified">pass</span>
+              {% else %}
+                <span class="pill pill-rejected">fail</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if draft["passes_no_product_claims"] is none %}
+                <span class="muted">Drafted before this gate existed &mdash; not
+                checked. Unverified is not treated as clean.</span>
+              {% else %}
+                {% set claims = draft["product_claims_found"] | fromjson %}
+                {% if claims %}
+                  Specifications attached to a named Sunreef vessel &mdash; §10.4
+                  allows none:
+                  <ul class="claim-list">
+                    {% for c in claims %}
+                      <li>
+                        <strong>{{ c["claim"] }}</strong> ({{ c["kind"] }}) near
+                        <strong>{{ c["vessel"] }}</strong>
+                        <br><span class="muted">&hellip;{{ c["snippet"] }}&hellip;</span>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <span class="muted">No figure or certification attached to a named
+                  Sunreef vessel.</span>
+                {% endif %}
               {% endif %}
             </td>
           </tr>

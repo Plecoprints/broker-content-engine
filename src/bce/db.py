@@ -35,7 +35,9 @@ SCHEMA_TABLES = (
 #: excluded banks"): one new table, `excluded_keyword`, holding the phrases the
 #: operator has ruled out by hand. Additive -- `CREATE TABLE IF NOT EXISTS`
 #: only, nothing existing is rewritten.
-SCHEMA_VERSION = 6
+#: Bumped to 7 for §10.9's fourth gate: `draft.passes_no_product_claims` and
+#: `draft.product_claims_found`. Additive `ALTER TABLE ADD COLUMN` only.
+SCHEMA_VERSION = 7
 
 #: Columns added to already-created tables after their first release. Applied
 #: additively by `init_schema` via ALTER TABLE, in declaration order.
@@ -53,6 +55,13 @@ ADDITIVE_COLUMNS: dict[str, dict[str, str]] = {
         "most_similar_draft_id": "INTEGER",
         "passes_originality": "INTEGER",
         "embedding": "TEXT",
+        # Spec §10.4 (as revised 2026-09-02) / §10.9's fourth gate: no
+        # specific claim about a named Sunreef vessel. `product_claims_found`
+        # holds what tripped it -- a gate reporting only "failed" cannot be
+        # acted on, and both a reviewer and a redraft prompt need the
+        # offending text. See `bce.claims`.
+        "passes_no_product_claims": "INTEGER",
+        "product_claims_found": "TEXT",
         # Spec §10.3 Gate 2 ("Tailored"): register/structure match against
         # this broker's own voice_profile, scored in `bce.originality.
         # score_tailored`. Recorded for every format (spec v0.6 §5: "compute
@@ -151,7 +160,9 @@ CREATE TABLE IF NOT EXISTS draft (
     max_similarity                REAL,
     most_similar_draft_id         INTEGER,
     passes_originality            INTEGER,
-    embedding                     TEXT
+    embedding                     TEXT,
+    passes_no_product_claims      INTEGER,
+    product_claims_found          TEXT
 );
 
 CREATE TABLE IF NOT EXISTS outcome (

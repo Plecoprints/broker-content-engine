@@ -66,12 +66,15 @@ def _drafted(tmp_path, embedder=None):
     return path, bid
 
 
-def test_gate_panel_shows_a_verdict_for_all_three_gates(tmp_path):
+def test_gate_panel_shows_a_verdict_for_every_gate(tmp_path):
+    """Renamed from ..._all_three_gates: §10.9 added a fourth (§10.4's
+    no-product-claims check), and the panel heading is no longer "Originality
+    gates" because that gate is not about originality."""
     path, bid = _drafted(tmp_path)
     body = TestClient(create_app(path)).get(f"/broker/{bid}/drafts").text
 
-    assert "Originality gates" in body
-    for gate in ("Unique", "Tailored", "Original"):
+    assert "Quality gates" in body
+    for gate in ("Unique", "Tailored", "Original", "No product claims"):
         assert gate in body, gate
 
 
@@ -140,3 +143,52 @@ def test_uniqueness_threshold_reaches_the_template(tmp_path):
 
     body = TestClient(create_app(path)).get(f"/broker/{bid}/drafts").text
     assert str(originality.UNIQUENESS_THRESHOLD) in body
+
+
+class _DraftsWithAProductClaim(_Drafts):
+    """A pillar that names a Sunreef vessel and attaches a figure to it."""
+
+    def write_long(self, angle, profile, broker_name, keywords=None):
+        return (
+            "A pillar paragraph about refit costs. " * 40
+            + "\n\nThe Sunreef 80 Eco carries 46 m2 of solar panels.\n\n"
+            + ("A pillar paragraph about refit costs. " * 40 + "\n\n") * 6
+        )
+
+
+def test_the_panel_shows_the_offending_claim_when_gate_four_fails(tmp_path):
+    """A verdict alone is not actionable. §10.4's difficulty is that nobody
+    can verify a claim after the fact, so the operator has to see the text
+    that tripped the gate -- and a redraft has to be aimed at it.
+    """
+    import json
+
+    path = str(tmp_path / "claims.db")
+    conn = db.connect(path)
+    db.init_schema(conn)
+    bid = conn.execute(
+        "INSERT INTO broker (name, domain, source) VALUES ('Acme', 'a.invalid', 'manual')"
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO voice_profile (broker_id, register, avg_sentence_len, "
+        "typical_word_count, structure_pattern, vocabulary_markers, themes, "
+        "audience_signal, sample_quotes) VALUES (?,?,?,?,?,?,?,?,?)",
+        (
+            bid, "warm professional", 7.0, 600,
+            json.dumps({"paragraphs_per_article": 5, "words_per_paragraph": 120}),
+            json.dumps([]), json.dumps([]), "owners", json.dumps([]),
+        ),
+    )
+    conn.commit()
+    drafting.draft_for_broker(conn, bid, _Angles(), _DraftsWithAProductClaim(), _Embedder())
+    conn.commit()
+    conn.close()
+
+    body = TestClient(create_app(path)).get(f"/broker/{bid}/drafts").text
+
+    assert "No product claims" in body
+    assert "46 m2" in body
+    assert "Sunreef 80 Eco" in body
+    assert "specification" in body
+    # And the panel still never leaks a repr.
+    assert "None" not in body

@@ -7,6 +7,8 @@ v0.6 §5).
 """
 import json
 
+import pytest
+
 from bce import db, originality
 
 
@@ -424,6 +426,11 @@ def test_gate_result_is_a_frozen_dataclass_with_explicit_bool():
         passes=False, passes_uniqueness=False, max_similarity=None,
         most_similar_draft_id=None, embedding=None, passes_tailored=False,
         tailored_score=0.0, passes_originality=False, originality_overlap=None,
+        # §10.9 gate 4. Deliberately has no default on the dataclass: a
+        # gate field defaulting to True is a gate that passes when a caller
+        # forgets it, which is the "silently degrades to fine" failure
+        # §10.3 exists to forbid.
+        passes_no_product_claims=False, product_claims=(),
     )
     try:
         result.passes = True
@@ -454,3 +461,73 @@ def test_uncomparable_tailored_score_does_not_block_medium_or_short():
         )
         assert result.tailored_score is None, fmt
         assert result.passes is True, f"{fmt} blocked by an absent comparison"
+
+
+# =============================================================================
+# Gate 4 -- no product claims (§10.4 as revised 2026-09-02, §10.9)
+# =============================================================================
+
+_CLEAN_BODY = "Short sentence here. " * 100
+_CLAIM_BODY = _CLEAN_BODY + " The Sunreef 80 Eco carries 46 m2 of solar."
+_PASSING_PROFILE = {
+    **PROFILE, "typical_word_count": 300, "avg_sentence_len": 3.0,
+    "structure_pattern": {},
+}
+
+
+def _run(conn, bid, fmt, body, vector=(1, 0, 0)):
+    return originality.run_gates(
+        conn, broker_id=bid, format=fmt, body=body,
+        profile=_PASSING_PROFILE,
+        embedding_client=FakeEmbeddingClient(vector=vector),
+    )
+
+
+def test_a_product_claim_fails_the_combined_verdict():
+    conn, bid = _profiled_conn()
+    result = _run(conn, bid, "medium", _CLAIM_BODY)
+
+    assert result.passes_no_product_claims is False
+    assert bool(result) is False
+    # Proves the test isn't vacuous: every other gate passed on this body.
+    assert result.passes_uniqueness is True
+    assert result.passes_originality is True
+
+
+def test_a_clean_body_passes_gate_four():
+    conn, bid = _profiled_conn()
+    result = _run(conn, bid, "medium", _CLEAN_BODY)
+    assert result.passes_no_product_claims is True
+    assert result.product_claims == ()
+    assert bool(result) is True
+
+
+@pytest.mark.parametrize("fmt", ["long", "medium", "short"])
+def test_gate_four_blocks_every_format_including_long(fmt):
+    """Unlike Tailored, gate 4 has no advisory mode. A fabricated
+    specification is no less dangerous in a 150-word newsletter item than in
+    a 2,300-word pillar, so `TAILORED_BLOCKING_FORMATS`-style leniency would
+    be exactly wrong here (§10.9).
+    """
+    conn, bid = _profiled_conn()
+    result = _run(conn, bid, fmt, _CLAIM_BODY)
+    assert result.passes_no_product_claims is False
+    assert bool(result) is False
+
+
+def test_the_offending_claim_travels_on_the_result():
+    conn, bid = _profiled_conn()
+    result = _run(conn, bid, "medium", _CLAIM_BODY)
+    assert len(result.product_claims) == 1
+    assert result.product_claims[0]["vessel"] == "Sunreef 80 Eco"
+    assert result.product_claims[0]["claim"] == "46 m2"
+
+
+def test_gate_result_has_no_default_for_gate_four():
+    """A gate field defaulting to True is a gate that passes when a caller
+    forgets to set it -- the "silently degrades to fine" failure §10.3
+    forbids. Asserted directly so nobody adds a convenience default."""
+    import dataclasses
+    fields = {f.name: f for f in dataclasses.fields(originality.GateResult)}
+    assert fields["passes_no_product_claims"].default is dataclasses.MISSING
+    assert fields["product_claims"].default is dataclasses.MISSING

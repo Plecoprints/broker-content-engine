@@ -35,7 +35,7 @@ import json
 import math
 from dataclasses import dataclass
 
-from bce import style
+from bce import claims, style
 from bce.fingerprint import containment as _shingle_containment
 from bce.fingerprint import shingle_hashes
 
@@ -249,7 +249,7 @@ def check_original(conn, broker_id: int, body: str) -> dict:
 
 @dataclass(frozen=True)
 class GateResult:
-    """The combined outcome of all three gates for one draft (spec §10.3).
+    """The combined outcome of every gate for one draft (spec §10.3, §10.9).
 
     Frozen, with an explicit `__bool__` -- same rationale as `drafting.
     DraftResult` / `profile.ProfileResult`: a dataclass's default truthiness
@@ -270,6 +270,8 @@ class GateResult:
     tailored_score: float
     passes_originality: bool
     originality_overlap: float | None
+    passes_no_product_claims: bool
+    product_claims: tuple
 
     def __bool__(self) -> bool:
         return self.passes
@@ -280,15 +282,20 @@ def run_gates(
 ) -> GateResult:
     """Run all three gates for one already-drafted format and combine them.
 
-    Gate 1 (Unique) and Gate 3 (Original) are blocking for every format.
-    Gate 2 (Tailored) is blocking only for `format` in
-    `TAILORED_BLOCKING_FORMATS` (medium/short) -- for `long` the score is
-    still computed and returned (so it can be persisted and shown), it just
-    never contributes to `passes`.
+    Gate 1 (Unique), Gate 3 (Original) and Gate 4 (No product claims, spec
+    §10.4 as revised / §10.9) are blocking for every format. Gate 2
+    (Tailored) is blocking only for `format` in `TAILORED_BLOCKING_FORMATS`
+    (medium/short) -- for `long` the score is still computed and returned (so
+    it can be persisted and shown), it just never contributes to `passes`.
+
+    Gate 4 is mechanical and format-independent: a fabricated specification
+    is no less dangerous in a 150-word newsletter item than in a pillar, so
+    unlike Tailored it has no advisory mode.
     """
     uniqueness = check_uniqueness(conn, format, body, embedding_client)
     tailored_score = score_tailored(profile, body)
     original = check_original(conn, broker_id, body)
+    product_claims = claims.check_no_product_claims(body)
 
     # `None` is "not comparable" (no statistics in the profile), not a zero.
     # It never blocks, and it is persisted as NULL so a reviewer can tell an
@@ -301,7 +308,12 @@ def run_gates(
     )
     tailored_ok = passes_tailored if tailored_blocks else True
 
-    overall = uniqueness["passes"] and tailored_ok and original["passes"]
+    overall = (
+        uniqueness["passes"]
+        and tailored_ok
+        and original["passes"]
+        and product_claims["passes"]
+    )
 
     return GateResult(
         passes=overall,
@@ -313,4 +325,6 @@ def run_gates(
         tailored_score=tailored_score,
         passes_originality=original["passes"],
         originality_overlap=original["containment"],
+        passes_no_product_claims=product_claims["passes"],
+        product_claims=tuple(product_claims["claims"]),
     )

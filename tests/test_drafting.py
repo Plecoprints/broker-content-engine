@@ -446,3 +446,43 @@ def test_picks_the_best_scoring_angle():
     stored = conn.execute("SELECT title FROM angle").fetchone()
     assert stored["title"] == "High"
     assert draft_client.long_calls[0]["angle"]["title"] == "High"
+
+
+def test_gate_four_verdict_and_evidence_persist_on_the_draft_row():
+    """§10.4 / §10.9 gate 4 is recorded on every persisted draft, and when it
+    fails the offending text is stored with it.
+
+    The evidence matters more here than for the other gates. A similarity
+    figure can be recomputed from the stored embedding; a product claim
+    cannot be recovered from a verdict, and §10.4's whole difficulty is that
+    nobody can verify the claim after the fact. So the text has to survive to
+    the row, where a reviewer -- or a redraft -- can see what tripped it.
+    """
+    conn = _conn()
+    bid = _profiled_broker(conn)
+    angle_client = FakeAngleClient(angles=[ANGLE])
+    draft_client = FakeDraftClient(
+        long_body="The Sunreef 80 Eco carries 46 m2 of solar panels.",
+        medium_body="A clean medium post about cruising grounds.",
+        short_body="A clean short blurb.",
+    )
+
+    drafting.draft_for_broker(conn, bid, angle_client, draft_client, FakeEmbeddingClient())
+
+    rows = {
+        r["format"]: r
+        for r in conn.execute("SELECT * FROM draft").fetchall()
+    }
+
+    long_row = rows["long"]
+    assert long_row["passes_no_product_claims"] == 0
+    assert long_row["status"] == "rejected"
+    stored = json.loads(long_row["product_claims_found"])
+    assert stored[0]["vessel"] == "Sunreef 80 Eco"
+    assert stored[0]["claim"] == "46 m2"
+
+    # The clean formats record a pass and store no evidence -- an empty list
+    # and NULL are different states, and NULL is "nothing tripped it".
+    for fmt in ("medium", "short"):
+        assert rows[fmt]["passes_no_product_claims"] == 1
+        assert rows[fmt]["product_claims_found"] is None
