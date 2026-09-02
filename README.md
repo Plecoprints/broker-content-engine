@@ -11,18 +11,40 @@ that were reversed and the reasoning behind them.
 
 ## Setting up on a new machine
 
-Requires Python 3.11 or newer.
+**Check your Python first — this is the step that bites on a fresh Mac.**
+
+```bash
+python3 -V
+```
+
+Requires **3.11 or newer**. macOS ships 3.9.6 as its system Python and that is not enough;
+the install will fail with `requires a different Python: 3.9.6 not in '>=3.11'`. If you are
+below 3.11, install a current Python from <https://python.org/downloads/> — take 3.12,
+which has prebuilt wheels for the two compiled dependencies (`selectolax`, `trafilatura`).
+It installs alongside the system Python and changes nothing else on the machine. Open a
+fresh terminal afterwards so `python3.12` is on your PATH.
+
+Then:
 
 ```bash
 git clone <this-repo-url> broker-content-engine
 cd broker-content-engine
-python3 -m venv .venv
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest
 ```
 
-The full suite should report **600 passed** and needs no API keys and no network — every
+The `pip install --upgrade pip` line is not optional housekeeping. Editable installs from
+a `pyproject.toml` need **pip 21.3 or newer**, and the pip bundled with an older Python
+fails with a misleading `File "setup.py" or "setup.cfg" not found`.
+
+The full suite should report **600 passed**, and needs no API keys and no network — every
 external client is faked in tests. If that passes, the install is good.
+
+Rebuilding is cheap and safe if anything goes wrong: `rm -rf .venv` and start again. The
+virtual environment holds only downloaded packages, is excluded from git, and contains
+none of your work.
 
 ## API keys
 
