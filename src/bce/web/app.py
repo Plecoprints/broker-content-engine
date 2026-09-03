@@ -313,6 +313,9 @@ def create_app(db_path: str) -> FastAPI:
     _TEMPLATES.env.filters["fromjson"] = lambda v: _loads(v, None)
     _TEMPLATES.env.filters["paragraphs"] = _paragraphs
     _TEMPLATES.env.globals["csrf_token"] = lambda: app.state.csrf_token
+    # Pick up template edits without a restart (helpful when served under a
+    # process manager during development/preview).
+    _TEMPLATES.env.auto_reload = True
     app.mount(
         "/static",
         StaticFiles(directory=str(Path(__file__).parent / "static")),
