@@ -54,8 +54,10 @@
   --t-br-90: #F0E4CE;
   --t-br-96: #FAF3E7;
 
-  /* --- semantic surfaces ------------------------------------- */
-  --bg:            #EEF3F4;
+  /* --- semantic surfaces: a real tonal ladder, band -> bg -> card */
+  --band:          #DBE8EC;
+  --band-sunk:     #CFE0E6;
+  --bg:            #F2F6F7;
   --surface:       var(--t-hull-99);
   --surface-card:  #FFFFFF;
   --surface-sunk:  var(--t-hull-96);
@@ -67,6 +69,8 @@
 
   --outline:      #C2D2D7;
   --outline-var:  #DDE7EA;
+  --meter-done:   #9FBAC3;
+  --meter-todo:   #C9D9DE;
 
   --primary:            var(--t-hull-16);
   --on-primary:         #F1F7F8;
@@ -78,7 +82,7 @@
   --on-accent:           #F2FBF9;
   --accent-container:    var(--t-sig-88);
   --on-accent-container: var(--t-sig-22);
-  --accent-faint:        var(--t-sig-95);
+  --accent-faint:        #E1F1ED;
 
   --archive:              var(--t-br-38);
   --archive-mark:         var(--t-br-41);
@@ -115,6 +119,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --band:          #0A2934;
+    --band-sunk:     #0C303C;
     --bg:            #05161D;
     --surface:       #08202A;
     --surface-card:  #0E2B36;
@@ -127,6 +133,8 @@
 
     --outline:      #2C4A56;
     --outline-var:  #1C3A45;
+    --meter-done:   #43626D;
+    --meter-todo:   #22414C;
 
     --primary:            #A9CEDA;
     --on-primary:         #06222D;
@@ -154,6 +162,8 @@
 }
 
 :root[data-theme="dark"] {
+  --band:          #0A2934;
+  --band-sunk:     #0C303C;
   --bg:            #05161D;
   --surface:       #08202A;
   --surface-card:  #0E2B36;
@@ -166,6 +176,8 @@
 
   --outline:      #2C4A56;
   --outline-var:  #1C3A45;
+  --meter-done:   #43626D;
+  --meter-todo:   #22414C;
 
   --primary:            #A9CEDA;
   --on-primary:         #06222D;
@@ -234,11 +246,19 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* ============================================================
    APP BAR — elevation 1, structure colour only
    ============================================================ */
+/* The top band is a tonal step above the page, not a hero.
+   It carries identity, provenance and cycle state — everything
+   that is context — and stops at a hairline. */
+.topband {
+  background: var(--band);
+  border-bottom: 1px solid var(--outline);
+}
+
 .appbar {
   position: sticky; top: 0; z-index: 20;
-  background: var(--surface);
-  border-bottom: 1px solid var(--outline-var);
-  box-shadow: var(--elev-1);
+  background: var(--band);
+  border-bottom: 1px solid transparent;
+  transition: box-shadow .2s var(--ease), border-color .2s var(--ease);
 }
 .appbar__inner {
   display: flex; align-items: center; gap: var(--sp-5);
@@ -274,7 +294,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   text-decoration: none;
   transition: background-color .16s var(--ease), color .16s var(--ease);
 }
-.tab:hover { background: var(--surface-sunk); color: var(--on-surface); }
+.tab:hover { background: var(--band-sunk); color: var(--on-surface); }
 .tab[aria-current="page"] { color: var(--on-surface); font-weight: 600; }
 .tab[aria-current="page"]::after {
   content: ""; position: absolute; left: var(--sp-3); right: var(--sp-3); bottom: -12px;
@@ -296,7 +316,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   cursor: pointer;
   transition: background-color .16s var(--ease), border-color .16s var(--ease);
 }
-.iconbtn:hover { background: var(--surface-sunk); border-color: var(--outline); color: var(--on-surface); }
+.iconbtn:hover { background: var(--band-sunk); border-color: var(--outline); color: var(--on-surface); }
 .iconbtn svg { width: 16px; height: 16px; display: block; }
 .iconbtn .moon { display: none; }
 @media (prefers-color-scheme: dark) {
@@ -317,8 +337,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 
 /* --- provenance strip: Sunreef as source, sized as a credit --- */
 .provenance {
-  background: var(--surface-sunk);
-  border-bottom: 1px solid var(--outline-var);
+  background: var(--band-sunk);
+  border-block: 1px solid rgb(var(--sh) / .07);
 }
 .provenance__inner {
   display: flex; align-items: center; gap: var(--sp-3);
@@ -327,12 +347,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   color: var(--on-surface-dim);
 }
 .provenance strong { color: var(--on-surface-var); font-weight: 500; }
-.provenance__rule { flex: 1 1 auto; height: 1px; background: var(--outline-var); min-width: var(--sp-4); }
+.provenance__rule { flex: 1 1 auto; height: 1px; background: var(--outline); min-width: var(--sp-4); }
 
 /* ============================================================
    WEEK HEADER — the single decision, stated once
    ============================================================ */
-.week { padding-block: clamp(2rem, 5vw, 3.25rem) var(--sp-6); }
+.week { padding-block: clamp(2rem, 5vw, 3.25rem) clamp(2rem, 4vw, 2.75rem); }
 
 .week__meta {
   display: flex; align-items: center; gap: var(--sp-3);
@@ -363,17 +383,17 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   margin-top: var(--sp-6);
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4) var(--sp-5);
   padding: var(--sp-3) var(--sp-4);
-  background: var(--surface);
+  background: var(--surface-card);
   border: 1px solid var(--outline-var);
   border-radius: var(--r-sunk);
-  box-shadow: var(--elev-0);
+  box-shadow: var(--elev-1);
 }
 .meter { display: flex; align-items: flex-end; gap: 3px; }
 .meter i {
   display: block; width: 15px; height: 6px; border-radius: 2px;
-  background: var(--outline-var);
+  background: var(--meter-todo);
 }
-.meter i.done    { background: var(--t-hull-72); }
+.meter i.done    { background: var(--meter-done); }
 .meter i.today   { background: var(--accent); height: 12px; }
 .cycle__fact { display: flex; align-items: baseline; gap: var(--sp-2); }
 .cycle__fact .k { color: var(--on-surface-dim); }
@@ -395,6 +415,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 .section-head .spacer { flex: 1 1 auto; }
 
 .slate { display: grid; gap: var(--sp-4); padding-bottom: var(--sp-8); }
+.slate-section { padding-top: clamp(2rem, 4vw, 2.75rem); }
 
 .angle {
   position: relative;
@@ -445,13 +466,13 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /* --- audience value: recessed container, teal marker --------- */
 .value {
   margin-top: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4) var(--sp-3) var(--sp-4);
-  border-left: 2px solid var(--accent);
+  padding: var(--sp-3) var(--sp-4);
+  border-left: 3px solid var(--accent);
   border-radius: 0 var(--r-sunk) var(--r-sunk) 0;
-  background: var(--surface-sunk);
+  background: var(--accent-faint);
 }
 .value__label { color: var(--accent); display: block; margin-bottom: var(--sp-1); }
-.value p { font-size: .9375rem; line-height: 1.58; max-width: 66ch; color: var(--on-surface); }
+.value p { font-size: .9375rem; line-height: 1.58; max-width: 66ch; color: var(--on-accent-container); }
 
 /* --- footer row: keyword chips + the one action -------------- */
 .angle__foot {
@@ -600,6 +621,10 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   .tabs { display: none; }
   .brand__sub { display: none; }
 }
+@media (max-width: 560px) {
+  .provenance__rule { display: none; }
+  .provenance__inner { flex-wrap: wrap; gap: 2px var(--sp-3); }
+}
 @media (max-width: 720px) {
   .angle { grid-template-columns: minmax(0, 1fr); padding: var(--sp-4); }
   .angle__index { grid-row: auto; font-size: 1rem; margin-bottom: var(--sp-2); }
@@ -624,6 +649,7 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 </head>
 <body>
 
+<div class="topband">
 <header class="appbar">
   <div class="shell appbar__inner">
     <div class="brand">
@@ -663,10 +689,8 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
   </div>
 </div>
 
-<main class="shell">
-
   <!-- ==================== WEEK HEADER ==================== -->
-  <section class="week">
+  <section class="week shell">
     <p class="mono week__meta"><span class="dot" aria-hidden="true"></span>Week 36 · 31 Aug – 6 Sep 2026</p>
     <h1>Four angles for you this week.</h1>
     <p class="week__lede">
@@ -698,9 +722,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
       </div>
     </div>
   </section>
+</div><!-- /.topband -->
+
+<main class="shell">
 
   <!-- ==================== THE SLATE ==================== -->
-  <section aria-labelledby="slate-h">
+  <section class="slate-section" aria-labelledby="slate-h">
     <div class="section-head">
       <h2 id="slate-h">This week's slate</h2>
       <span class="spacer"></span>

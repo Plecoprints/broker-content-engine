@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "review-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8731", "-d", "/private/tmp/claude-501/-Users-l-perez-broker-content-engine/5ac41121-d6ec-4a6f-af3e-069f50f4d0c7/scratchpad/portal"],
+      "port": 8731
+    }
+  ]
+}
