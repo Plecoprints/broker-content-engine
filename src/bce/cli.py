@@ -34,7 +34,7 @@ def cmd_init(db_path: str) -> int:
     return 0
 
 
-def cmd_import(db_path: str, csv_path: str) -> int:
+def cmd_import(db_path: str, csv_path: str, approved: bool = False) -> int:
     try:
         # utf-8-sig: Excel's "CSV UTF-8" writes a BOM, which would otherwise
         # become part of the first header name.
@@ -68,7 +68,16 @@ def cmd_import(db_path: str, csv_path: str) -> int:
             f"cap (spec section 6). Trim the CSV or raise the cap deliberately."
         )
         return 1
-    print(f"imported {discover.import_csv(conn, text)} brokers")
+    count = discover.import_csv(conn, text, approved=approved)
+    if approved:
+        print(
+            f"imported {count} brokers, marked qualified on your say-so.\n"
+            f"  `bce qualify` is optional now and cannot reject them — it only reports "
+            f"whether the crawler can read each site, which decides whether `bce profile` "
+            f"will work."
+        )
+    else:
+        print(f"imported {count} brokers")
     return 0
 
 
@@ -153,30 +162,34 @@ def cmd_qualify(db_path: str, limit: int = DEFAULT_QUALIFY_LIMIT) -> int:
     db.init_schema(conn)
     fetcher = Fetcher()
     rows = discover.unqualified_brokers(conn, limit)
-    suspect = 0
+    unreadable: list[tuple[str, int]] = []
+    readable = 0
     for row in rows:
         verdict = qualify.qualify_broker(conn, row["id"], fetcher)
-        line = f"{row['domain']}: {verdict['reason']}"
         if verdict.get("render_suspect"):
-            suspect += 1
-            line += (
-                f"  [!] only {verdict['visible_text_chars']} chars of visible text"
-                " -- likely client-side rendered, so this verdict is about what we"
-                " could read, not about the broker. Check by hand."
-            )
-        print(line)
-    if suspect:
-        # Loud, and separate from the per-row note: a run where several
-        # brokers were unreadable is a run whose shortlist is wrong, and the
-        # operator has to know that before acting on it (spec §7 lists
-        # Playwright for exactly these sites; it is not built).
+            unreadable.append((row["domain"], verdict["visible_text_chars"] or 0))
+        else:
+            readable += 1
+        print(f"{row['domain']}: {verdict['reason']}")
+
+    # The audit the operator actually acts on. They vet the brokers; this says
+    # which of their choices the crawler cannot read, which is the one thing
+    # manual review cannot see -- a site looks fine in a browser and arrives
+    # here as an empty shell (spec §5 Stage 2, revised 2026-09-02).
+    print(f"\n{'-' * 62}\nAudit: {len(rows)} sites, {readable} readable, "
+          f"{len(unreadable)} not readable")
+    if unreadable:
+        print("\nNOT READABLE -- omit these from the portal:\n")
+        for domain, chars in unreadable:
+            print(f"  {domain:<38} {chars} chars of visible text")
         print(
-            f"\n{suspect} of {len(rows)} pages returned almost no visible text."
-            " Their verdicts are unreliable -- open each one in a browser before"
-            " accepting a rejection. If many broker sites are client-side"
-            " rendered, rendered fetching (spec §7's Playwright) is the fix, and"
-            " it is not built."
+            "\nThese render client-side, so the crawler receives a shell with no"
+            "\nprose in it. Voice profiling has nothing to read, so any draft for"
+            "\nthem would not be in their voice. Spec §7 lists Playwright for"
+            "\nexactly these sites; it is not built."
         )
+    else:
+        print("\nEvery site is readable. Nothing to omit.")
     return 0
 
 
@@ -417,6 +430,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("init")
     p_import = sub.add_parser("import")
     p_import.add_argument("csv")
+    p_import.add_argument(
+        "--approved", action="store_true",
+        help="the operator has vetted these brokers by hand; mark them qualified "
+             "on import and skip the crawl verdict entirely (spec §5 Stage 2)",
+    )
     p_keywords = sub.add_parser("keywords")
     p_keywords.add_argument("csv")
     p_exclusions = sub.add_parser("exclusions")
@@ -453,7 +471,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "init":
         return cmd_init(args.db)
     if args.command == "import":
-        return cmd_import(args.db, args.csv)
+        return cmd_import(args.db, args.csv, approved=args.approved)
     if args.command == "keywords":
         return cmd_keywords(args.db, args.csv)
     if args.command == "exclusions":

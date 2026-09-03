@@ -122,15 +122,37 @@ def count_new_domains(conn: sqlite3.Connection, csv_text: str) -> int:
     return len(new)
 
 
-def import_csv(conn: sqlite3.Connection, csv_text: str) -> int:
+#: `qualified_reason` for a broker the operator vetted by hand. Distinct from
+#: any crawl verdict on purpose: it records *who decided*, so a later reader
+#: can tell "a person who knows this firm said yes" from "our detectors did
+#: not object". Spec §5 Stage 2.
+OPERATOR_APPROVED = "operator_approved"
+
+
+def import_csv(
+    conn: sqlite3.Connection, csv_text: str, *, approved: bool = False
+) -> int:
+    """Import brokers. With `approved=True` they are marked qualified on
+    arrival and never crawled for a verdict (spec §5 Stage 2, revised
+    2026-09-02).
+
+    The operator vets brokers by hand — they know the firms, and a detector
+    reading a homepage does not. So `qualified` records their decision, and
+    Stage 2 is demoted from a gate to a readability check that cannot reject
+    anyone.
+    """
     rows, _ = parse_rows(csv_text)
     inserted = 0
     for row in rows:
         try:
             conn.execute(
-                "INSERT INTO broker (name, domain, region, source) "
-                "VALUES (?, ?, ?, 'manual')",
-                (row["name"], row["domain"], row["region"]),
+                "INSERT INTO broker (name, domain, region, source, qualified, "
+                "qualified_reason) VALUES (?, ?, ?, 'manual', ?, ?)",
+                (
+                    row["name"], row["domain"], row["region"],
+                    1 if approved else None,
+                    OPERATOR_APPROVED if approved else None,
+                ),
             )
             inserted += 1
         except sqlite3.IntegrityError:
@@ -155,9 +177,24 @@ def list_brokers(
 
 
 def unqualified_brokers(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
-    """Brokers that have not yet been through Stage 2 qualification."""
+    """Brokers Stage 2 still has something to do for.
+
+    Two populations, not one. The crawl-first path is brokers with no verdict
+    yet (`qualified IS NULL`). But an operator-approved broker arrives already
+    qualified, and Stage 2 still owes them the readability audit -- so they
+    belong here too until it has run.
+
+    `robots_allowed IS NULL` is the "never crawled" marker: `qualify._save`
+    always writes it on every path, so it is set exactly once a broker has been
+    visited. Without this clause, `--approved` would set `qualified = 1` and
+    the audit would silently find nothing to audit.
+    """
     return conn.execute(
-        "SELECT id, domain FROM broker WHERE qualified IS NULL LIMIT ?", (limit,)
+        "SELECT id, domain FROM broker "
+        "WHERE qualified IS NULL "
+        "   OR (qualified_reason = ? AND robots_allowed IS NULL) "
+        "LIMIT ?",
+        (OPERATOR_APPROVED, limit),
     ).fetchall()
 
 

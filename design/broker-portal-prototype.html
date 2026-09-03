@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>This week's angles — Marchetti &amp; Vale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ============================================================
+   TONAL SYSTEM
+   Every colour below is derived from two Sunreef hues:
+     --hull   #0E3542  ->  hsl(195, 65%, 16%)   structure
+     --signal #12776C  ->  hsl(173, 74%, 27%)   decision / live
+   plus one archival hue:
+     --brass  #A6742C  ->  hsl( 35, 58%, 41%)   delivered / past
+   Tones are stepped, not eyeballed. Colour carries meaning:
+     teal   = this week, actionable, the decision
+     brass  = already delivered, past cycles
+     hull   = surfaces, rules, type. Never an accent.
+   ============================================================ */
+
+:root {
+  /* --- tonal ramp: hull / neutral (hue 195) ------------------ */
+  --t-hull-05: #061A22;
+  --t-hull-10: #08222C;
+  --t-hull-16: #0E3542;   /* Sunreef --hull */
+  --t-hull-24: #164A5B;
+  --t-hull-38: #366D7E;
+  --t-hull-55: #6E96A3;
+  --t-hull-72: #A8C1CA;
+  --t-hull-86: #D2E0E5;
+  --t-hull-92: #E4EDF0;
+  --t-hull-96: #EFF4F5;
+  --t-hull-99: #FAFCFC;
+
+  /* --- tonal ramp: signal (hue 173) -------------------------- */
+  --t-sig-22: #0B4A43;
+  --t-sig-27: #12776C;    /* Sunreef --signal */
+  --t-sig-34: #0F6055;
+  --t-sig-52: #3FA294;
+  --t-sig-74: #A6DCD2;
+  --t-sig-88: #D3EAE5;
+  --t-sig-95: #EAF6F3;
+
+  /* --- tonal ramp: brass (hue 35) ---------------------------- */
+  --t-br-22: #4A3208;
+  --t-br-33: #6F4C16;
+  --t-br-38: #8C6120;
+  --t-br-41: #A6742C;     /* Sunreef --brass */
+  --t-br-78: #E0C08A;
+  --t-br-90: #F0E4CE;
+  --t-br-96: #FAF3E7;
+
+  /* --- semantic surfaces: a real tonal ladder, band -> bg -> card */
+  --band:          #DBE8EC;
+  --band-sunk:     #CFE0E6;
+  --bg:            #F2F6F7;
+  --surface:       var(--t-hull-99);
+  --surface-card:  #FFFFFF;
+  --surface-sunk:  var(--t-hull-96);
+  --surface-high:  var(--t-hull-92);
+
+  --on-surface:      #0A2530;   /* Sunreef --ink */
+  --on-surface-var:  #46626C;   /* Sunreef --ink-soft */
+  --on-surface-dim:  #6E8791;
+
+  --outline:      #C2D2D7;
+  --outline-var:  #DDE7EA;
+  --meter-done:   #9FBAC3;
+  --meter-todo:   #C9D9DE;
+
+  --primary:            var(--t-hull-16);
+  --on-primary:         #F1F7F8;
+  --primary-container:  var(--t-hull-86);
+  --on-primary-container: var(--t-hull-10);
+
+  --accent:              var(--t-sig-27);
+  --accent-press:        var(--t-sig-34);
+  --on-accent:           #F2FBF9;
+  --accent-container:    var(--t-sig-88);
+  --on-accent-container: var(--t-sig-22);
+  --accent-faint:        #E1F1ED;
+
+  --archive:              var(--t-br-38);
+  --archive-mark:         var(--t-br-41);
+  --archive-container:    var(--t-br-90);
+  --on-archive-container: var(--t-br-22);
+  --archive-faint:        var(--t-br-96);
+
+  /* --- functional elevation (encodes priority, not decoration) */
+  --sh: 9 42 54;
+  --elev-0: none;
+  --elev-1: 0 1px 1px rgb(var(--sh) / .05), 0 1px 3px rgb(var(--sh) / .06);
+  --elev-2: 0 2px 4px rgb(var(--sh) / .06), 0 5px 12px rgb(var(--sh) / .08);
+  --elev-3: 0 4px 8px rgb(var(--sh) / .07), 0 14px 28px rgb(var(--sh) / .11);
+
+  /* --- type -------------------------------------------------- */
+  --ui:   "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  /* --- 4px spacing scale ------------------------------------- */
+  --sp-1: .25rem;  --sp-2: .5rem;   --sp-3: .75rem;  --sp-4: 1rem;
+  --sp-5: 1.5rem;  --sp-6: 2rem;    --sp-7: 3rem;    --sp-8: 4rem;
+  --sp-9: 6rem;
+
+  /* --- radii by role, not one radius everywhere -------------- */
+  --r-card: 14px;
+  --r-btn:  9px;
+  --r-sunk: 7px;
+  --r-chip: 999px;
+  --r-mark: 3px;
+
+  --gut: clamp(1.25rem, 4vw, 3rem);
+  --ease: cubic-bezier(.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --band:          #0A2934;
+    --band-sunk:     #0C303C;
+    --bg:            #05161D;
+    --surface:       #08202A;
+    --surface-card:  #0E2B36;
+    --surface-sunk:  #0B2430;
+    --surface-high:  #16394A;
+
+    --on-surface:      #DDE8EB;
+    --on-surface-var:  #93A9B1;
+    --on-surface-dim:  #708A93;
+
+    --outline:      #2C4A56;
+    --outline-var:  #1C3A45;
+    --meter-done:   #43626D;
+    --meter-todo:   #22414C;
+
+    --primary:            #A9CEDA;
+    --on-primary:         #06222D;
+    --primary-container:  #17394A;
+    --on-primary-container: #CDE4EC;
+
+    --accent:              #5CC3B2;
+    --accent-press:        #7FD6C7;
+    --on-accent:           #032F2A;
+    --accent-container:    #10423C;
+    --on-accent-container: #A9E4D8;
+    --accent-faint:        #0B2F2C;
+
+    --archive:              #D6A155;
+    --archive-mark:         #D6A155;
+    --archive-container:    #3A2B11;
+    --on-archive-container: #F0D5A5;
+    --archive-faint:        #241B0C;
+
+    --sh: 0 0 0;
+    --elev-1: 0 1px 2px rgb(var(--sh) / .40);
+    --elev-2: 0 2px 4px rgb(var(--sh) / .36), 0 6px 14px rgb(var(--sh) / .34);
+    --elev-3: 0 4px 8px rgb(var(--sh) / .38), 0 16px 32px rgb(var(--sh) / .44);
+  }
+}
+
+:root[data-theme="dark"] {
+  --band:          #0A2934;
+  --band-sunk:     #0C303C;
+  --bg:            #05161D;
+  --surface:       #08202A;
+  --surface-card:  #0E2B36;
+  --surface-sunk:  #0B2430;
+  --surface-high:  #16394A;
+
+  --on-surface:      #DDE8EB;
+  --on-surface-var:  #93A9B1;
+  --on-surface-dim:  #708A93;
+
+  --outline:      #2C4A56;
+  --outline-var:  #1C3A45;
+  --meter-done:   #43626D;
+  --meter-todo:   #22414C;
+
+  --primary:            #A9CEDA;
+  --on-primary:         #06222D;
+  --primary-container:  #17394A;
+  --on-primary-container: #CDE4EC;
+
+  --accent:              #5CC3B2;
+  --accent-press:        #7FD6C7;
+  --on-accent:           #032F2A;
+  --accent-container:    #10423C;
+  --on-accent-container: #A9E4D8;
+  --accent-faint:        #0B2F2C;
+
+  --archive:              #D6A155;
+  --archive-mark:         #D6A155;
+  --archive-container:    #3A2B11;
+  --on-archive-container: #F0D5A5;
+  --archive-faint:        #241B0C;
+
+  --sh: 0 0 0;
+  --elev-1: 0 1px 2px rgb(var(--sh) / .40);
+  --elev-2: 0 2px 4px rgb(var(--sh) / .36), 0 6px 14px rgb(var(--sh) / .34);
+  --elev-3: 0 4px 8px rgb(var(--sh) / .38), 0 16px 32px rgb(var(--sh) / .44);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--on-surface);
+  font-family: var(--ui);
+  font-size: 16px;
+  line-height: 1.55;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; text-wrap: balance; }
+p { margin: 0; }
+ol, ul { margin: 0; padding: 0; list-style: none; }
+
+:where(a) { color: var(--accent); text-underline-offset: .18em; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--r-mark);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: .6875rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.shell { max-width: 1140px; margin-inline: auto; padding-inline: var(--gut); }
+
+/* ============================================================
+   APP BAR — elevation 1, structure colour only
+   ============================================================ */
+/* The top band is a tonal step above the page, not a hero.
+   It carries identity, provenance and cycle state — everything
+   that is context — and stops at a hairline. */
+.topband {
+  background: var(--band);
+  border-bottom: 1px solid var(--outline);
+}
+
+.appbar {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--band);
+  border-bottom: 1px solid transparent;
+  transition: box-shadow .2s var(--ease), border-color .2s var(--ease);
+}
+.appbar__inner {
+  display: flex; align-items: center; gap: var(--sp-5);
+  min-height: 62px;
+}
+
+.brand { display: flex; align-items: center; gap: var(--sp-3); margin-right: auto; min-width: 0; }
+.brand__mark {
+  display: grid; place-items: center;
+  width: 32px; height: 32px; flex: none;
+  border-radius: var(--r-mark);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-family: var(--mono); font-size: .75rem; font-weight: 500; letter-spacing: .02em;
+}
+.brand__text { display: flex; flex-direction: column; min-width: 0; }
+.brand__name {
+  font-weight: 600; font-size: .95rem; letter-spacing: -.005em; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.brand__sub {
+  font-family: var(--mono); font-size: .625rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--on-surface-dim); line-height: 1.5;
+}
+
+.tabs { display: flex; gap: var(--sp-1); }
+.tab {
+  position: relative;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-btn);
+  font-size: .875rem; font-weight: 500;
+  color: var(--on-surface-var);
+  text-decoration: none;
+  transition: background-color .16s var(--ease), color .16s var(--ease);
+}
+.tab:hover { background: var(--band-sunk); color: var(--on-surface); }
+.tab[aria-current="page"] { color: var(--on-surface); font-weight: 600; }
+.tab[aria-current="page"]::after {
+  content: ""; position: absolute; left: var(--sp-3); right: var(--sp-3); bottom: -12px;
+  height: 2px; background: var(--accent); border-radius: 2px 2px 0 0;
+}
+.tab__count {
+  display: inline-block; margin-left: var(--sp-2);
+  padding: 0 6px; border-radius: var(--r-chip);
+  background: var(--accent-container); color: var(--on-accent-container);
+  font-family: var(--mono); font-size: .625rem; line-height: 17px; font-weight: 500;
+}
+
+.appbar__end { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
+.iconbtn {
+  display: grid; place-items: center;
+  width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--outline-var); border-radius: var(--r-btn);
+  background: transparent; color: var(--on-surface-var);
+  cursor: pointer;
+  transition: background-color .16s var(--ease), border-color .16s var(--ease);
+}
+.iconbtn:hover { background: var(--band-sunk); border-color: var(--outline); color: var(--on-surface); }
+.iconbtn svg { width: 16px; height: 16px; display: block; }
+.iconbtn .moon { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .iconbtn .sun  { display: none; }
+  :root:not([data-theme="light"]) .iconbtn .moon { display: block; }
+}
+:root[data-theme="dark"] .iconbtn .sun  { display: none; }
+:root[data-theme="dark"] .iconbtn .moon { display: block; }
+:root[data-theme="light"] .iconbtn .sun  { display: block; }
+:root[data-theme="light"] .iconbtn .moon { display: none; }
+
+.avatar {
+  display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: var(--r-chip);
+  background: var(--primary-container); color: var(--on-primary-container);
+  font-family: var(--mono); font-size: .6875rem; font-weight: 500;
+}
+
+/* --- provenance strip: Sunreef as source, sized as a credit --- */
+.provenance {
+  background: var(--band-sunk);
+  border-block: 1px solid rgb(var(--sh) / .07);
+}
+.provenance__inner {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding-block: var(--sp-2);
+  font-family: var(--mono); font-size: .625rem; letter-spacing: .085em; text-transform: uppercase;
+  color: var(--on-surface-dim);
+}
+.provenance strong { color: var(--on-surface-var); font-weight: 500; }
+.provenance__rule { flex: 1 1 auto; height: 1px; background: var(--outline); min-width: var(--sp-4); }
+
+/* ============================================================
+   WEEK HEADER — the single decision, stated once
+   ============================================================ */
+.week { padding-block: clamp(2rem, 5vw, 3.25rem) clamp(2rem, 4vw, 2.75rem); }
+
+.week__meta {
+  display: flex; align-items: center; gap: var(--sp-3);
+  color: var(--accent); margin-bottom: var(--sp-4);
+}
+.week__meta .dot {
+  width: 7px; height: 7px; border-radius: var(--r-chip);
+  background: var(--accent); flex: none;
+  box-shadow: 0 0 0 4px var(--accent-faint);
+}
+
+.week h1 {
+  font-size: clamp(1.75rem, 4.2vw, 2.6rem);
+  line-height: 1.08;
+  letter-spacing: -.028em;
+  max-width: 20ch;
+}
+.week__lede {
+  margin-top: var(--sp-4);
+  max-width: 62ch;
+  font-size: 1.0625rem;
+  color: var(--on-surface-var);
+}
+.week__lede b { color: var(--on-surface); font-weight: 600; }
+
+/* --- cycle meter: state made visible, no legend needed -------- */
+.cycle {
+  margin-top: var(--sp-6);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4) var(--sp-5);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-card);
+  border: 1px solid var(--outline-var);
+  border-radius: var(--r-sunk);
+  box-shadow: var(--elev-1);
+}
+.meter { display: flex; align-items: flex-end; gap: 3px; }
+.meter i {
+  display: block; width: 15px; height: 6px; border-radius: 2px;
+  background: var(--meter-todo);
+}
+.meter i.done    { background: var(--meter-done); }
+.meter i.today   { background: var(--accent); height: 12px; }
+.cycle__fact { display: flex; align-items: baseline; gap: var(--sp-2); }
+.cycle__fact .k { color: var(--on-surface-dim); }
+.cycle__fact .v { font-size: .8125rem; font-weight: 500; color: var(--on-surface); }
+.cycle__fact .v.accent { color: var(--accent); }
+.cycle__spacer { flex: 1 1 auto; }
+
+/* ============================================================
+   THE SLATE
+   ============================================================ */
+.section-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--outline);
+  margin-bottom: var(--sp-5);
+}
+.section-head h2 { font-size: 1rem; letter-spacing: -.01em; }
+.section-head .mono { color: var(--on-surface-dim); }
+.section-head .spacer { flex: 1 1 auto; }
+
+.slate { display: grid; gap: var(--sp-4); padding-bottom: var(--sp-8); }
+.slate-section { padding-top: clamp(2rem, 4vw, 2.75rem); }
+
+.angle {
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 0 var(--sp-4);
+  padding: var(--sp-5);
+  background: var(--surface-card);
+  border: 1px solid var(--outline-var);
+  border-radius: var(--r-card);
+  box-shadow: var(--elev-1);
+  transition: box-shadow .18s var(--ease), border-color .18s var(--ease), transform .18s var(--ease);
+}
+.angle:hover {
+  box-shadow: var(--elev-2);
+  border-color: var(--outline);
+  transform: translateY(-1px);
+}
+.angle:focus-within { border-color: var(--accent); box-shadow: var(--elev-2); }
+
+.angle__index {
+  grid-row: 1 / span 4;
+  font-family: var(--mono); font-size: 1.375rem; font-weight: 400;
+  color: var(--t-hull-72);
+  line-height: 1;
+  padding-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-theme="dark"] .angle__index { color: var(--outline); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .angle__index { color: var(--outline); }
+}
+
+.angle__title {
+  font-size: clamp(1.1875rem, 2.1vw, 1.4375rem);
+  line-height: 1.22;
+  letter-spacing: -.021em;
+  max-width: 34ch;
+}
+.angle__premise {
+  margin-top: var(--sp-3);
+  max-width: 68ch;
+  color: var(--on-surface-var);
+  font-size: .9375rem;
+  line-height: 1.62;
+}
+
+/* --- audience value: recessed container, teal marker --------- */
+.value {
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--r-sunk) var(--r-sunk) 0;
+  background: var(--accent-faint);
+}
+.value__label { color: var(--accent); display: block; margin-bottom: var(--sp-1); }
+.value p { font-size: .9375rem; line-height: 1.58; max-width: 66ch; color: var(--on-accent-container); }
+
+/* --- footer row: keyword chips + the one action -------------- */
+.angle__foot {
+  margin-top: var(--sp-5);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-4);
+}
+.chips {
+  display: flex; gap: var(--sp-2); flex: 1 1 320px; min-width: 0;
+  overflow-x: auto; padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.chip {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--outline-var);
+  border-radius: var(--r-chip);
+  background: var(--surface-sunk);
+  color: var(--on-surface-var);
+  font-family: var(--mono); font-size: .6875rem; letter-spacing: .01em;
+  white-space: nowrap;
+}
+.chips__label { flex: none; color: var(--on-surface-dim); align-self: center; padding-right: 2px; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding: 10px 18px;
+  border: 1px solid transparent; border-radius: var(--r-btn);
+  font-family: var(--ui); font-size: .875rem; font-weight: 600; letter-spacing: -.005em;
+  cursor: pointer;
+  transition: background-color .16s var(--ease), box-shadow .16s var(--ease), color .16s var(--ease);
+}
+.btn--filled {
+  background: var(--accent); color: var(--on-accent);
+  box-shadow: var(--elev-1);
+}
+.btn--filled:hover { background: var(--accent-press); box-shadow: var(--elev-2); }
+.btn--filled svg { width: 15px; height: 15px; }
+.btn--text {
+  background: transparent; color: var(--on-surface-var);
+  border-color: var(--outline-var);
+  font-weight: 500;
+  padding: 7px 12px; font-size: .8125rem;
+}
+.btn--text:hover { background: var(--surface-sunk); color: var(--on-surface); border-color: var(--outline); }
+.btn--text.is-done {
+  color: var(--archive); border-color: transparent; background: var(--archive-faint);
+}
+
+/* ============================================================
+   COLLECTED — brass register, lower elevation, past tense
+   ============================================================ */
+.collected { padding-bottom: var(--sp-8); }
+.collected .section-head h2 { color: var(--on-surface); }
+.collected .section-head .marker {
+  width: 7px; height: 7px; border-radius: var(--r-chip);
+  background: var(--archive-mark); flex: none;
+}
+
+.pick {
+  border: 1px solid var(--outline-var);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--elev-0);
+  overflow: hidden;
+}
+.pick__head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--outline-var);
+}
+.pick__head h3 {
+  font-size: 1.0625rem; letter-spacing: -.015em; line-height: 1.3; max-width: 46ch;
+  font-weight: 600;
+}
+.tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px 3px 7px; border-radius: var(--r-chip);
+  background: var(--archive-container); color: var(--on-archive-container);
+  font-family: var(--mono); font-size: .625rem; letter-spacing: .08em; text-transform: uppercase;
+  flex: none;
+}
+.tag svg { width: 11px; height: 11px; }
+
+.files { display: grid; }
+.file {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(90px, .5fr) minmax(150px, .9fr) auto;
+  align-items: center; gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid var(--outline-var);
+}
+.file:last-child { border-bottom: 0; }
+.file__name { display: flex; align-items: center; gap: var(--sp-3); font-size: .9375rem; font-weight: 500; }
+.file__state {
+  width: 8px; height: 8px; border-radius: var(--r-chip); flex: none;
+  background: var(--archive-mark);
+}
+.file__state.pending { background: transparent; border: 1.5px solid var(--accent); }
+.file__len { font-family: var(--mono); font-size: .75rem; color: var(--on-surface-dim); font-variant-numeric: tabular-nums; }
+.file__when { font-size: .8125rem; color: var(--on-surface-var); }
+.file__when.pending { color: var(--accent); font-weight: 500; }
+.file__acts { display: flex; gap: var(--sp-2); justify-self: end; }
+
+.pick__foot {
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--surface-sunk);
+  border-top: 1px solid var(--outline-var);
+  display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); align-items: baseline;
+  font-size: .8125rem; color: var(--on-surface-var);
+}
+.pick__foot .mono { color: var(--on-surface-dim); }
+
+.archive-link {
+  margin-top: var(--sp-4);
+  font-size: .875rem; color: var(--on-surface-var);
+}
+.archive-link a { color: var(--accent); text-decoration-color: var(--accent-container); }
+
+/* ============================================================
+   FOOT
+   ============================================================ */
+.foot {
+  border-top: 1px solid var(--outline);
+  background: var(--surface);
+  padding-block: var(--sp-6) var(--sp-7);
+}
+.foot__grid {
+  display: grid; gap: var(--sp-5);
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.foot h4 { font-size: .8125rem; margin-bottom: var(--sp-2); }
+.foot p { font-size: .8125rem; color: var(--on-surface-var); max-width: 44ch; line-height: 1.6; }
+.foot .mono { color: var(--on-surface-dim); display: block; margin-bottom: var(--sp-2); }
+.foot__bar {
+  margin-top: var(--sp-6); padding-top: var(--sp-4);
+  border-top: 1px solid var(--outline-var);
+  display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); align-items: center;
+  font-family: var(--mono); font-size: .625rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--on-surface-dim);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 900px) {
+  .tabs { display: none; }
+  .brand__sub { display: none; }
+}
+@media (max-width: 560px) {
+  .provenance__rule { display: none; }
+  .provenance__inner { flex-wrap: wrap; gap: 2px var(--sp-3); }
+}
+@media (max-width: 720px) {
+  .angle { grid-template-columns: minmax(0, 1fr); padding: var(--sp-4); }
+  .angle__index { grid-row: auto; font-size: 1rem; margin-bottom: var(--sp-2); }
+  .angle__foot { align-items: stretch; }
+  .btn--filled { width: 100%; justify-content: center; }
+  .file {
+    grid-template-columns: minmax(0,1fr) auto;
+    row-gap: var(--sp-2);
+    padding-inline: var(--sp-4);
+  }
+  .file__len { justify-self: end; }
+  .file__when { grid-column: 1; }
+  .file__acts { grid-column: 2; }
+  .pick__head, .pick__foot { padding-inline: var(--sp-4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  .angle:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="topband">
+<header class="appbar">
+  <div class="shell appbar__inner">
+    <div class="brand">
+      <span class="brand__mark" aria-hidden="true">MV</span>
+      <span class="brand__text">
+        <span class="brand__name">Marchetti &amp; Vale</span>
+        <span class="brand__sub">Yacht Brokerage · Antibes &amp; Palma</span>
+      </span>
+    </div>
+
+    <nav class="tabs" aria-label="Sections">
+      <a class="tab" href="#" aria-current="page">This week<span class="tab__count">4</span></a>
+      <a class="tab" href="#collected">Collected</a>
+      <a class="tab" href="#">Your voice profile</a>
+      <a class="tab" href="#">Account</a>
+    </nav>
+
+    <div class="appbar__end">
+      <button class="iconbtn" id="theme" type="button" aria-label="Switch colour scheme">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/>
+        </svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.5 14.6A8.6 8.6 0 1 1 9.4 3.5a6.9 6.9 0 0 0 11.1 11.1z"/>
+        </svg>
+      </button>
+      <span class="avatar" title="Elena Vale">EV</span>
+    </div>
+  </div>
+</header>
+
+<div class="provenance">
+  <div class="shell provenance__inner">
+    <span>Editorial angles from <strong>Sunreef Yachts</strong></span>
+    <span class="provenance__rule" aria-hidden="true"></span>
+    <span>Reviewed by a person before they reach you</span>
+  </div>
+</div>
+
+  <!-- ==================== WEEK HEADER ==================== -->
+  <section class="week shell">
+    <p class="mono week__meta"><span class="dot" aria-hidden="true"></span>Week 36 · 31 Aug – 6 Sep 2026</p>
+    <h1>Four angles for you this week.</h1>
+    <p class="week__lede">
+      Pick the one you'd actually want on your journal. It comes back as <b>three finished pieces in your
+      voice</b> — a 2,000-word pillar, a medium post and a short newsletter item — for you to edit and publish
+      under your own byline.
+    </p>
+
+    <div class="cycle">
+      <div class="meter" role="img" aria-label="Day 4 of 7 in this cycle">
+        <i class="done"></i><i class="done"></i><i class="done"></i><i class="today"></i><i></i><i></i><i></i>
+      </div>
+      <div class="cycle__fact">
+        <span class="mono k">Choose by</span>
+        <span class="v accent">Sun 6 Sep</span>
+      </div>
+      <div class="cycle__fact">
+        <span class="mono k">Slate</span>
+        <span class="v">Fixed this week</span>
+      </div>
+      <div class="cycle__fact">
+        <span class="mono k">Delivery</span>
+        <span class="v">~24h after you choose</span>
+      </div>
+      <span class="cycle__spacer"></span>
+      <div class="cycle__fact">
+        <span class="mono k">Last collected</span>
+        <span class="v">29 Aug</span>
+      </div>
+    </div>
+  </section>
+</div><!-- /.topband -->
+
+<main class="shell">
+
+  <!-- ==================== THE SLATE ==================== -->
+  <section class="slate-section" aria-labelledby="slate-h">
+    <div class="section-head">
+      <h2 id="slate-h">This week's slate</h2>
+      <span class="spacer"></span>
+      <span class="mono">One choice · no reroll</span>
+    </div>
+
+    <ol class="slate">
+
+      <li class="angle">
+        <span class="angle__index" aria-hidden="true">01</span>
+        <div>
+          <h3 class="angle__title">Insuring a 60-Foot Catamaran in the Med: What Underwriters Actually Ask</h3>
+          <p class="angle__premise">
+            Multihull cover is priced on beam, berth agreement and named-skipper qualification far more than on
+            length, which is why a quote for a 60-foot catamaran and a 60-foot monohull rarely resemble each
+            other. The piece walks through what a Mediterranean underwriter reviews line by line — hull
+            configuration, winter berth, crew endorsement, cruising limits — and which of those an owner can
+            still change before renewal.
+          </p>
+          <div class="value">
+            <span class="mono value__label">Why your readers would want it</span>
+            <p>
+              Buyers raise insurance late, usually once an offer is already in and the survey is booked. Being
+              the person who explained the underwriting logic first reads as advice rather than sales, and it
+              removes one of the commonest reasons a Mediterranean deal stalls through September.
+            </p>
+          </div>
+          <div class="angle__foot">
+            <div class="chips">
+              <span class="mono chips__label">Searches</span>
+              <span class="chip">catamaran insurance</span>
+              <span class="chip">catamaran boat insurance</span>
+              <span class="chip">catamaran cost</span>
+            </div>
+            <button class="btn btn--filled" type="button">
+              Choose this angle
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </li>
+
+      <li class="angle">
+        <span class="angle__index" aria-hidden="true">02</span>
+        <div>
+          <h3 class="angle__title">Monohull or Multihull: The Six Questions That Decide It</h3>
+          <p class="angle__premise">
+            Almost every comparison online argues for one hull form. This one refuses to. It sets out the six
+            questions whose answers make the decision for the buyer — intended cruising ground, guest count,
+            berthing budget, tolerance for sea state, resale window, and whether there will be permanent crew —
+            and states the trade-off honestly in both directions, including where a monohull is simply the
+            better boat.
+          </p>
+          <div class="value">
+            <span class="mono value__label">Why your readers would want it</span>
+            <p>
+              It is the comparison your clients have already half-read somewhere worse. Sending a version that
+              declines to pick a side positions you as the broker who asks better questions than the listing
+              portals, and it is the single most forwarded piece in this category.
+            </p>
+          </div>
+          <div class="angle__foot">
+            <div class="chips">
+              <span class="mono chips__label">Searches</span>
+              <span class="chip">sailing monohull vs. catamaran</span>
+              <span class="chip">monohull</span>
+              <span class="chip">catamaran hull characteristics</span>
+            </div>
+            <button class="btn btn--filled" type="button">
+              Choose this angle
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </li>
+
+      <li class="angle">
+        <span class="angle__index" aria-hidden="true">03</span>
+        <div>
+          <h3 class="angle__title">Reading a Mediterranean Charter Programme Before You Commit to One</h3>
+          <p class="angle__premise">
+            More owners now buy with a charter programme in mind, then discover the programme quietly dictates
+            layout, crew berths and which weeks of August they can use themselves. This reads a typical
+            Croatia-and-Ionian season from the owner's side of the table — realistic occupancy, MYBA terms, what
+            a central agent needs the boat to have — and separates the numbers that hold from the ones that
+            flatter.
+          </p>
+          <div class="value">
+            <span class="mono value__label">Why your readers would want it</span>
+            <p>
+              Charter economics is where owners feel most exposed to optimism, and the client who trusts your
+              arithmetic on a programme brings you the purchase. It also earns links from the charter-side
+              operators you already work with in Split and Athens.
+            </p>
+          </div>
+          <div class="angle__foot">
+            <div class="chips">
+              <span class="mono chips__label">Searches</span>
+              <span class="chip">catamaran charter mediterranean</span>
+              <span class="chip">catamaran yacht charter croatia</span>
+              <span class="chip">crewed catamaran charter</span>
+            </div>
+            <button class="btn btn--filled" type="button">
+              Choose this angle
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </li>
+
+      <li class="angle">
+        <span class="angle__index" aria-hidden="true">04</span>
+        <div>
+          <h3 class="angle__title">Financing a Multihull: Why the Structure Matters More Than the Rate</h3>
+          <p class="angle__premise">
+            Marine lenders treat multihulls differently from monohulls — deposit expectations, flag and
+            ownership structure, and whether the boat will charter move the final terms more than the headline
+            rate does. The article lays out the three structures Mediterranean buyers actually use, what each
+            costs in flexibility, and the questions to put to a lender before an offer rather than after.
+          </p>
+          <div class="value">
+            <span class="mono value__label">Why your readers would want it</span>
+            <p>
+              Finance conversations usually happen away from the broker, with an adviser who does not know
+              boats. Being the one who framed the structure keeps you in the room at exactly the point where
+              these deals are won or lost.
+            </p>
+          </div>
+          <div class="angle__foot">
+            <div class="chips">
+              <span class="mono chips__label">Searches</span>
+              <span class="chip">how to finance a catamaran</span>
+              <span class="chip">how much does a catamaran cost</span>
+              <span class="chip">catamaran cost</span>
+            </div>
+            <button class="btn btn--filled" type="button">
+              Choose this angle
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </li>
+
+    </ol>
+  </section>
+
+  <!-- ==================== COLLECTED ==================== -->
+  <section class="collected" id="collected" aria-labelledby="collected-h">
+    <div class="section-head">
+      <span class="marker" aria-hidden="true"></span>
+      <h2 id="collected-h">Ready to collect</h2>
+      <span class="spacer"></span>
+      <span class="mono">From your Week 35 choice</span>
+    </div>
+
+    <article class="pick">
+      <div class="pick__head">
+        <span class="tag">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.2 5.2L20 7"/></svg>
+          You chose
+        </span>
+        <h3>Why a Semi-Displacement Bow Changes How a 60-Footer Feels at Anchor</h3>
+      </div>
+
+      <div class="files">
+        <div class="file">
+          <span class="file__name"><span class="file__state" aria-hidden="true"></span>Pillar article</span>
+          <span class="file__len">2,140 words</span>
+          <span class="file__when">Collected 29 Aug</span>
+          <span class="file__acts">
+            <button class="btn btn--text is-done" type="button">Copied</button>
+            <button class="btn btn--text" type="button">Download</button>
+          </span>
+        </div>
+        <div class="file">
+          <span class="file__name"><span class="file__state" aria-hidden="true"></span>Medium post</span>
+          <span class="file__len">780 words</span>
+          <span class="file__when">Collected 29 Aug</span>
+          <span class="file__acts">
+            <button class="btn btn--text is-done" type="button">Copied</button>
+            <button class="btn btn--text" type="button">Download</button>
+          </span>
+        </div>
+        <div class="file">
+          <span class="file__name"><span class="file__state pending" aria-hidden="true"></span>Newsletter item</span>
+          <span class="file__len">190 words</span>
+          <span class="file__when pending">Not collected yet</span>
+          <span class="file__acts">
+            <button class="btn btn--text" type="button">Copy</button>
+            <button class="btn btn--text" type="button">Download</button>
+          </span>
+        </div>
+        <div class="file">
+          <span class="file__name"><span class="file__state" aria-hidden="true"></span>Paired image</span>
+          <span class="file__len">4000 × 2667</span>
+          <span class="file__when">Collected 29 Aug</span>
+          <span class="file__acts">
+            <button class="btn btn--text" type="button">Download</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="pick__foot">
+        <span class="mono">Image licence</span>
+        <span>Editorial use on your own channels, credit “Sunreef Yachts”. Not for paid placement.</span>
+      </div>
+    </article>
+
+    <p class="archive-link">Weeks 32–34 are in <a href="#">your archive</a> — nine pieces, all still yours.</p>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="shell">
+    <div class="foot__grid">
+      <div>
+        <span class="mono">Whose content this is</span>
+        <h4>Yours, entirely.</h4>
+        <p>
+          Published under your byline, edited however you like, on your own site. Sunreef proposes the angles and
+          writes to your voice profile; nothing is published on your behalf and nothing obliges you to publish.
+        </p>
+      </div>
+      <div>
+        <span class="mono">What we measure</span>
+        <h4>Which pieces get used.</h4>
+        <p>
+          We record when you copy or download a piece, so the following week's angles are shaped by what you
+          actually ran. Nothing else about your visit is tracked, and this is never shared with another broker.
+        </p>
+      </div>
+      <div>
+        <span class="mono">If something is off</span>
+        <h4>Tell a person, not a form.</h4>
+        <p>
+          Kasia Wrona handles this programme at Sunreef and reads every reply —
+          <a href="#">kasia.wrona@sunreef.com</a>. Wrong tone, wrong subject, or wrong week: say so and the next
+          slate changes.
+        </p>
+      </div>
+    </div>
+    <div class="foot__bar">
+      <span>Broker Content Engine</span>
+      <span>Provided by Sunreef Yachts</span>
+      <span>Signed in as Elena Vale · Marchetti &amp; Vale</span>
+      <span class="cycle__spacer"></span>
+      <span>Next slate: Mon 7 Sep</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    document.getElementById('theme').addEventListener('click', function () {
+      var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var current = root.getAttribute('data-theme') || (dark ? 'dark' : 'light');
+      root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+    });
+  })();
+</script>
+
+</body>
+</html>

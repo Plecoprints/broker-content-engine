@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>This week's angles — Duvivier &amp; Cie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;1,6..96,400&family=Schibsted+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   BRIDGE — Sunreef Broker Content Engine, broker-facing slate.
+   Bodoni Moda: display only, the single thread back to Sunreef.
+   Schibsted Grotesk: every other job.
+   IBM Plex Mono: system stamps only — labels, dates, week number.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Sunreef identity tokens — docs/leadership-brief.html */
+  --abyss:      #06212B;
+  --hull:       #0E3542;
+  --paper:      #E8E9E4;
+  --paper-lift: #F3F4F1;
+  --ink:        #0A2531;
+  --ink-soft:   #476069;
+  --rule:       #C9CEC9;
+  --brass:      #A6742C;
+  --signal:     #12776C;
+
+  --bg:        var(--paper);
+  --surface:   var(--paper-lift);
+  --fg:        var(--ink);
+  --fg-soft:   var(--ink-soft);
+  --fg-faint:  #6E858C;
+  --border:    var(--rule);
+  --hairline:  #D5D9D3;
+
+  /* one functional accent */
+  --accent:      var(--signal);
+  --accent-tint: rgba(18, 119, 108, 0.07);
+  --focus:       var(--signal);
+
+  /* primary action: ink, not colour */
+  --btn-bg:       var(--abyss);
+  --btn-fg:       #F2F4F1;
+  --btn-bg-hover: #0B2E3B;
+
+  --display: "Bodoni Moda", "Didot", "Times New Roman", serif;
+  --sans:    "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --mono:    "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+
+  /* spacing scale — 4px base, used everywhere, nothing off-scale */
+  --s1: 4px;  --s2: 8px;   --s3: 12px; --s4: 16px; --s5: 24px;
+  --s6: 32px; --s7: 48px;  --s8: 64px; --s9: 96px; --s10: 128px;
+
+  --gut: clamp(24px, 5vw, 64px);
+  --shell: 1120px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #0A1A21;
+    --paper-lift: #0F262F;
+    --ink:        #E4E8E6;
+    --ink-soft:   #92A6AD;
+    --rule:       #21414C;
+    --brass:      #D6A155;
+    --signal:     #5CC3B2;
+
+    --bg:        var(--paper);
+    --surface:   var(--paper-lift);
+    --fg:        var(--ink);
+    --fg-soft:   var(--ink-soft);
+    --fg-faint:  #7B9199;
+    --border:    var(--rule);
+    --hairline:  #1B3743;
+
+    --accent:      var(--signal);
+    --accent-tint: rgba(92, 195, 178, 0.09);
+    --focus:       var(--signal);
+
+    --btn-bg:       #DCE3E1;
+    --btn-fg:       #06212B;
+    --btn-bg-hover: #FFFFFF;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper:      #0A1A21;
+  --paper-lift: #0F262F;
+  --ink:        #E4E8E6;
+  --ink-soft:   #92A6AD;
+  --rule:       #21414C;
+  --brass:      #D6A155;
+  --signal:     #5CC3B2;
+
+  --bg:        var(--paper);
+  --surface:   var(--paper-lift);
+  --fg:        var(--ink);
+  --fg-soft:   var(--ink-soft);
+  --fg-faint:  #7B9199;
+  --border:    var(--rule);
+  --hairline:  #1B3743;
+
+  --accent:      var(--signal);
+  --accent-tint: rgba(92, 195, 178, 0.09);
+  --focus:       var(--signal);
+
+  --btn-bg:       #DCE3E1;
+  --btn-fg:       #06212B;
+  --btn-bg-hover: #FFFFFF;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  font-optical-sizing: auto;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.shell {
+  max-width: var(--shell);
+  margin-inline: auto;
+  padding-inline: var(--gut);
+}
+
+/* ── system stamp: the only mono in the design ───────────────── */
+.stamp {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: var(--fg-faint);
+  margin: 0;
+}
+.stamp--brass { color: var(--brass); }
+
+/* ═══ masthead bar ═══════════════════════════════════════════ */
+
+.bar {
+  border-bottom: 1px solid var(--hairline);
+}
+.bar-in {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  min-height: 68px;
+  padding-block: var(--s3);
+}
+
+.firm {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0;
+  white-space: nowrap;
+}
+.firm span {
+  display: block;
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--fg-faint);
+}
+
+.nav {
+  display: flex;
+  gap: var(--s5);
+  margin-left: auto;
+  align-items: center;
+}
+.nav a {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-soft);
+  text-decoration: none;
+  padding-block: var(--s2);
+  border-bottom: 1.5px solid transparent;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+.nav a:hover { color: var(--fg); }
+.nav a[aria-current] { color: var(--fg); border-bottom-color: var(--accent); }
+
+.who {
+  display: grid;
+  place-items: center;
+  width: 30px; height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--fg-soft);
+  margin-left: var(--s2);
+}
+
+.provenance {
+  border-left: 1px solid var(--hairline);
+  padding-left: var(--s5);
+  margin-left: var(--s5);
+}
+
+/* ═══ week header ════════════════════════════════════════════ */
+
+.week {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 268px);
+  column-gap: var(--s9);
+  align-items: start;
+  padding-block: var(--s9) var(--s8);
+}
+
+.week h1 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-variation-settings: "opsz" 72;
+  font-size: clamp(2.4rem, 5.4vw, 3.6rem);
+  line-height: 1.03;
+  letter-spacing: -0.021em;
+  margin: var(--s4) 0 var(--s5);
+  max-width: 15ch;
+  text-wrap: balance;
+}
+.week h1 em {
+  font-style: italic;
+  font-variation-settings: "opsz" 72;
+}
+
+.lede {
+  margin: 0;
+  max-width: 54ch;
+  font-size: 17px;
+  line-height: 1.66;
+  color: var(--fg-soft);
+}
+.lede strong { color: var(--fg); font-weight: 500; }
+
+/* right rail — context, not decoration */
+.rail { margin-top: var(--s2); }
+.rail div { padding-block: var(--s4); border-top: 1px solid var(--hairline); }
+.rail div:first-child { border-top: 0; padding-top: 0; }
+.rail .val {
+  margin: var(--s2) 0 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.rail .val cite {
+  font-family: var(--display);
+  font-style: italic;
+  font-variation-settings: "opsz" 18;
+  font-size: 17px;
+}
+.rail .sub { margin: var(--s1) 0 0; font-size: 13px; color: var(--fg-faint); }
+.rail a { color: var(--fg-soft); text-decoration: none; border-bottom: 1px solid var(--border); }
+.rail a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ═══ the slate ══════════════════════════════════════════════ */
+
+.slate-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s5);
+  padding-bottom: var(--s3);
+  border-bottom: 1.5px solid var(--fg);
+}
+
+.slate { border-bottom: 1px solid var(--hairline); }
+
+.angle {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 268px);
+  column-gap: var(--s7);
+  padding: var(--s7) var(--s5);
+  margin-inline: calc(var(--s5) * -1);
+  border-top: 1px solid var(--hairline);
+  transition: background-color 200ms ease, opacity 200ms ease;
+}
+.angle:first-child { border-top: 0; }
+
+.angle::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--accent);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 220ms cubic-bezier(.2,.7,.3,1);
+}
+
+.angle input { position: absolute; opacity: 0; pointer-events: none; }
+
+.a-num {
+  grid-column: 1;
+  font-family: var(--display);
+  font-variation-settings: "opsz" 28;
+  font-weight: 400;
+  font-size: 1.55rem;
+  line-height: 1.15;
+  color: var(--fg-faint);
+  font-variant-numeric: lining-nums;
+  transition: color 200ms ease;
+}
+
+.a-body { grid-column: 2; min-width: 0; }
+
+.a-title {
+  font-family: var(--display);
+  font-weight: 500;
+  font-variation-settings: "opsz" 32;
+  font-size: clamp(1.45rem, 2.5vw, 1.78rem);
+  line-height: 1.16;
+  letter-spacing: -0.008em;
+  margin: 0 0 var(--s4);
+  max-width: 26ch;
+  text-wrap: balance;
+  cursor: pointer;
+}
+
+.a-premise {
+  margin: 0;
+  max-width: 58ch;
+  font-size: 15.5px;
+  line-height: 1.66;
+  color: var(--fg-soft);
+}
+
+.a-value { grid-column: 3; min-width: 0; padding-top: var(--s1); }
+.a-value p {
+  margin: var(--s3) 0 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--fg-soft);
+  max-width: 42ch;
+}
+.a-value .stamp { padding-bottom: var(--s3); border-bottom: 1px solid var(--hairline); }
+
+.a-foot {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s4) var(--s5);
+  margin-top: var(--s6);
+}
+
+/* the choice */
+.pick {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 9px var(--s4);
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+.angle:hover .pick { border-color: var(--fg-soft); }
+
+.commit {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 240ms cubic-bezier(.2,.7,.3,1), opacity 180ms ease;
+}
+.commit > span {
+  overflow: hidden;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--fg-soft);
+  max-width: 46ch;
+}
+
+/* ── selected state ─────────────────────────────────────────── */
+.angle:has(input:checked) { background: var(--accent-tint); }
+.angle:has(input:checked)::before { transform: scaleY(1); }
+.angle:has(input:checked) .a-num { color: var(--accent); }
+.angle:has(input:checked) .pick {
+  background: var(--btn-bg);
+  border-color: var(--btn-bg);
+  color: var(--btn-fg);
+}
+.angle:has(input:checked) .pick:hover { background: var(--btn-bg-hover); border-color: var(--btn-bg-hover); }
+.angle:has(input:checked) .commit { grid-template-rows: 1fr; opacity: 1; }
+
+/* once a choice exists, the rest recede — hierarchy, not decoration */
+.slate:has(input:checked) .angle:not(:has(input:checked)) { opacity: 0.55; }
+.slate:has(input:checked) .angle:not(:has(input:checked)):hover { opacity: 0.92; }
+
+.angle:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+
+.slate-foot {
+  padding-block: var(--s5) var(--s10);
+  font-size: 13.5px;
+  color: var(--fg-faint);
+  max-width: 62ch;
+}
+
+/* ═══ footer ═════════════════════════════════════════════════ */
+
+.foot { border-top: 1px solid var(--hairline); }
+.foot-in {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 268px);
+  column-gap: var(--s9);
+  row-gap: var(--s6);
+  padding-block: var(--s8) var(--s9);
+}
+.terms { display: grid; gap: var(--s5); max-width: 62ch; }
+.terms p { margin: var(--s2) 0 0; font-size: 14px; line-height: 1.6; color: var(--fg-soft); }
+.terms .stamp { color: var(--fg-faint); }
+
+.theme {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: var(--s3);
+}
+.theme button {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--border);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+.theme button:first-child { border-left: 0; }
+.theme button:hover { color: var(--fg); background: var(--surface); }
+
+/* ═══ responsive ═════════════════════════════════════════════ */
+
+@media (max-width: 1000px) {
+  .week, .foot-in { grid-template-columns: minmax(0, 1fr); row-gap: var(--s7); }
+  .week h1 { max-width: 18ch; }
+  .rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 var(--s7); }
+  .rail div:first-child { padding-top: var(--s4); border-top: 1px solid var(--hairline); }
+
+  .angle { grid-template-columns: 3rem minmax(0, 1fr); row-gap: var(--s6); }
+  .a-value { grid-column: 2; padding-top: 0; }
+  .a-value p { max-width: 58ch; }
+}
+
+@media (max-width: 620px) {
+  body { font-size: 15px; }
+  .bar-in { flex-wrap: wrap; min-height: 0; }
+  .provenance { order: 3; width: 100%; margin: 0; padding: var(--s3) 0 0; border-left: 0; border-top: 1px solid var(--hairline); }
+  .nav { gap: var(--s4); }
+  .week { padding-block: var(--s7) var(--s6); }
+  .angle {
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+    padding-inline: var(--s4);
+    margin-inline: calc(var(--s4) * -1);
+    padding-block: var(--s6);
+  }
+  .slate-head > :last-child { display: none; }
+  .a-num { grid-column: 1; margin-bottom: var(--s3); font-size: 1.3rem; }
+  .a-body, .a-value, .a-foot { grid-column: 1; }
+  .a-foot { margin-top: var(--s5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 1ms !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ masthead: the broker's name first, Sunreef as provenance ═══ -->
+<header class="bar">
+  <div class="shell bar-in">
+    <p class="firm">Duvivier &amp; Cie <span>Antibes · Yacht Brokerage</span></p>
+    <nav class="nav">
+      <a href="#" aria-current="page">This week</a>
+      <a href="#">Library</a>
+      <span class="who" title="Claire Duvivier">CD</span>
+    </nav>
+    <p class="stamp provenance">Content engine by Sunreef&nbsp;Yachts</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- ═══ the week ═══ -->
+  <div class="shell week">
+    <div>
+      <p class="stamp stamp--brass">Week 36 · 2026</p>
+      <h1>Four angles for the week of <em>1 September</em></h1>
+      <p class="lede">
+        Choose one. It is written out as a 2,000-word feature, a mid-length post and a
+        short newsletter note — in your register, under your byline, on your site.
+        <strong>This is the set for this week.</strong> There is no reroll; the next four
+        arrive Monday.
+      </p>
+    </div>
+
+    <aside class="rail">
+      <div>
+        <p class="stamp">Choice closes</p>
+        <p class="val">Mon 8 Sep, 09:00 CET</p>
+        <p class="sub">Unchosen slates simply expire.</p>
+      </div>
+      <div>
+        <p class="stamp">Last week you chose</p>
+        <p class="val"><cite>The Refit Question</cite></p>
+        <p class="sub">Three pieces waiting in your <a href="#">library</a>.</p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ═══ the slate ═══ -->
+  <div class="shell">
+    <div class="slate-head">
+      <p class="stamp" style="color: var(--fg);">The slate</p>
+      <p class="stamp">Four proposals · one choice</p>
+    </div>
+
+    <form class="slate">
+
+      <!-- 01 -->
+      <label class="angle">
+        <input type="radio" name="angle" value="a1">
+        <p class="a-num">01</p>
+        <div class="a-body">
+          <h2 class="a-title">The Meltemi Test: What a Week in the Cyclades Settles About Hull Choice</h2>
+          <p class="a-premise">
+            The monohull-versus-multihull argument is usually settled on paper. This piece
+            settles it on the water — a seven-day Cyclades run in a hard August Meltemi,
+            judged on motion at anchor, which bays stay usable at 30 knots, draft in the
+            crowded Small Cyclades, and how tired the crew is by Thursday. The conclusion
+            is not that one hull wins; it is that the question is badly posed.
+          </p>
+        </div>
+        <div class="a-value">
+          <p class="stamp">Why your readers want it</p>
+          <p>
+            Almost every comparison in circulation was written for Caribbean trade winds.
+            Your buyers cruise the Aegean and arrive at a viewing already anxious about the
+            Meltemi. A straight answer, grounded in the water they actually sail, is the
+            kind of thing they forward to a friend.
+          </p>
+        </div>
+        <div class="a-foot">
+          <button type="button" class="pick">Choose this angle</button>
+          <span class="commit"><span>Locks your week. Three drafts land in your library within a day, editable before you publish.</span></span>
+        </div>
+      </label>
+
+      <!-- 02 -->
+      <label class="angle">
+        <input type="radio" name="angle" value="a2">
+        <p class="a-num">02</p>
+        <div class="a-body">
+          <h2 class="a-title">What a Sixty-Foot Catamaran Actually Costs to Keep in the Mediterranean</h2>
+          <p class="a-premise">
+            A full year of ownership, itemised: a summer berth on the Côte d'Azur against a
+            winter one in Sicily, two crew on Med contracts, hull and liability cover,
+            haul-out and antifoul, a realistic refit reserve, and the VAT position for a
+            privately used vessel. Set against the purchase price, which is the number
+            buyers fixate on and the smallest part of the answer.
+          </p>
+        </div>
+        <div class="a-value">
+          <p class="stamp">Why your readers want it</p>
+          <p>
+            The running-cost question is what stalls a deal three weeks in, and buyers are
+            researching it before they call anyone. Publishing an honest figure shortens the
+            first conversation and places you visibly on the buyer's side of the table.
+          </p>
+        </div>
+        <div class="a-foot">
+          <button type="button" class="pick">Choose this angle</button>
+          <span class="commit"><span>Locks your week. Three drafts land in your library within a day, editable before you publish.</span></span>
+        </div>
+      </label>
+
+      <!-- 03 -->
+      <label class="angle">
+        <input type="radio" name="angle" value="a3">
+        <p class="a-num">03</p>
+        <div class="a-body">
+          <h2 class="a-title">Chartering Her Out: The Arithmetic Owners Are Rarely Shown</h2>
+          <p class="a-premise">
+            Crewed charter as a partial offset to ownership, examined without the brochure
+            optimism. How many weeks a Greek or Croatian programme realistically books in a
+            season, what the management share and turnaround costs take out, the flag and
+            licensing work behind a legal charter, and the point at which accelerated wear
+            makes the whole exercise a poor trade.
+          </p>
+        </div>
+        <div class="a-value">
+          <p class="stamp">Why your readers want it</p>
+          <p>
+            Nearly every buyer asks whether the boat can pay for part of itself, and most
+            brokerage writing either oversells the answer or avoids it. Being the one who
+            does the arithmetic out loud is what turns you from a salesperson into their
+            adviser.
+          </p>
+        </div>
+        <div class="a-foot">
+          <button type="button" class="pick">Choose this angle</button>
+          <span class="commit"><span>Locks your week. Three drafts land in your library within a day, editable before you publish.</span></span>
+        </div>
+      </label>
+
+      <!-- 04 -->
+      <label class="angle">
+        <input type="radio" name="angle" value="a4">
+        <p class="a-num">04</p>
+        <div class="a-body">
+          <h2 class="a-title">Quiet at Anchor: What Hybrid and Solar Have Genuinely Changed</h2>
+          <p class="a-premise">
+            An honest audit of electric drives, larger banks and full-surface solar after a
+            Mediterranean August: generator hours actually avoided, what a still night in a
+            crowded Ionian bay is now worth, and the places the technology still
+            disappoints — range under load, charging ashore, and the resale question nobody
+            has enough data to answer yet.
+          </p>
+        </div>
+        <div class="a-value">
+          <p class="stamp">Why your readers want it</p>
+          <p>
+            Owners are being sold this by every yard at once and have no neutral reading of
+            it. A broker who states the limits as plainly as the benefits becomes the person
+            they telephone before they commit — which is the call you want.
+          </p>
+        </div>
+        <div class="a-foot">
+          <button type="button" class="pick">Choose this angle</button>
+          <span class="commit"><span>Locks your week. Three drafts land in your library within a day, editable before you publish.</span></span>
+        </div>
+      </label>
+
+    </form>
+
+    <p class="slate-foot">
+      None of these fit your readers this week? Leave the slate. Nothing is sent, and the
+      next four arrive on Monday regardless.
+    </p>
+  </div>
+</main>
+
+<!-- ═══ footer: the terms, said plainly ═══ -->
+<footer class="foot">
+  <div class="shell foot-in">
+    <div class="terms">
+      <div>
+        <p class="stamp">Whose work this is</p>
+        <p>
+          Everything produced from your choice is yours: your voice, your byline, your site,
+          your rights. Sunreef appears only where a mention is earned by the argument, and
+          never as the subject of the piece. Edit anything, or publish none of it.
+        </p>
+      </div>
+      <div>
+        <p class="stamp">What we record</p>
+        <p>
+          We log which pieces you copy or download, so the next slate is closer to what you
+          actually use. Nothing else is tracked, and we do not read your site's analytics.
+        </p>
+      </div>
+      <div>
+        <p class="stamp">Before it reaches you</p>
+        <p>
+          Every angle on this page was drafted by Sunreef's editorial engine and read by a
+          person at Sunreef before it was sent. Questions go to
+          <a href="mailto:editorial@sunreef-yachts.com" style="color: var(--fg-soft);">editorial@sunreef-yachts.com</a>.
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <p class="stamp">Appearance</p>
+      <div class="theme" role="group" aria-label="Appearance">
+        <button type="button" data-set="light">Light</button>
+        <button type="button" data-set="dark">Dark</button>
+        <button type="button" data-set="auto">Auto</button>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Progressive enhancement only: theme preference + selecting an angle.
+  document.querySelectorAll('.theme button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.dataset.set;
+      if (v === 'auto') document.documentElement.removeAttribute('data-theme');
+      else document.documentElement.setAttribute('data-theme', v);
+    });
+  });
+  document.querySelectorAll('.pick').forEach(function (b) {
+    b.addEventListener('click', function () {
+      b.closest('.angle').querySelector('input').checked = true;
+    });
+  });
+</script>
+
+</body>
+</html>

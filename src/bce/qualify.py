@@ -13,6 +13,7 @@ the length and affinity detectors, raw markup for the link/attribute ones.
 import sqlite3
 from datetime import date
 
+from bce import discover
 from bce.detectors import (
     detect_last_post_date,
     detect_max_length_ft,
@@ -35,10 +36,43 @@ def _tri(value):
     return None if value is None else (1 if value else 0)
 
 
+def _is_operator_approved(conn, broker_id: int) -> bool:
+    row = conn.execute(
+        "SELECT qualified_reason FROM broker WHERE id=?", (broker_id,)
+    ).fetchone()
+    return bool(row) and row["qualified_reason"] == discover.OPERATOR_APPROVED
+
+
 def _save(conn, broker_id, *, qualified, reason, robots_allowed,
           affinity, evidence, segment_evidence, has_editorial,
           has_newsletter, newsletter_evidence, editorial_last_post=None,
           visible_text_chars=None):
+    # An operator decision is not overwritten by a crawl verdict. The evidence
+    # columns are still updated -- that is the point of running this at all --
+    # but `qualified` and `qualified_reason` keep the operator's answer.
+    if _is_operator_approved(conn, broker_id):
+        conn.execute(
+            "UPDATE broker SET robots_allowed=?, sunreef_affinity=?, "
+            "affinity_evidence=?, segment_evidence=?, has_editorial=?, "
+            "has_newsletter=?, newsletter_evidence=?, editorial_last_post=? "
+            "WHERE id=?",
+            (
+                1 if robots_allowed else 0, affinity, evidence, segment_evidence,
+                _tri(has_editorial), _tri(has_newsletter), newsletter_evidence,
+                editorial_last_post, broker_id,
+            ),
+        )
+        conn.commit()
+        return {
+            "qualified": True,
+            "reason": f"{reason} (advisory; operator-approved)",
+            "visible_text_chars": visible_text_chars,
+            "render_suspect": (
+                visible_text_chars is not None
+                and visible_text_chars < RENDER_SUSPICION_CHARS
+            ),
+        }
+
     conn.execute(
         "UPDATE broker SET qualified=?, qualified_reason=?, robots_allowed=?, "
         "sunreef_affinity=?, affinity_evidence=?, segment_evidence=?, "
@@ -146,6 +180,22 @@ def _editorial_recency(fetcher, editorial_urls, *, today=None):
 
 
 def qualify_broker(conn: sqlite3.Connection, broker_id: int, fetcher) -> dict:
+    """Visit a broker's site and record what we could learn from it.
+
+    **Revised 2026-09-02: this no longer decides whether a broker is in.** The
+    operator vets brokers by hand and submits a shortlist they have already
+    approved; `discover.OPERATOR_APPROVED` records that. For those brokers this
+    function still crawls and still records every piece of evidence, but it
+    leaves `qualified` alone — a detector reading a homepage does not get to
+    overrule someone who knows the firm.
+
+    What it is still for, and the reason it is worth running at all: it is the
+    only thing that reports whether the crawler can *read* the site. The
+    operator opens a broker's page in a browser and sees it fully rendered; the
+    fetcher sees whatever the server sent, which for a client-rendered site is
+    an empty shell. That is not a judgement about the broker — it decides
+    whether Stage 3 can profile them — and it cannot be seen by eye.
+    """
     row = conn.execute(
         "SELECT domain FROM broker WHERE id=?", (broker_id,)
     ).fetchone()
