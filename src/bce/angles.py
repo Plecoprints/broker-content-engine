@@ -12,6 +12,7 @@ import json
 
 import anthropic
 
+from bce import untrusted
 from bce.draft import COMPETITORS
 
 MODEL = "claude-opus-5"
@@ -191,7 +192,7 @@ class AngleClient:
             response = self.client.messages.create(
                 model=MODEL,
                 max_tokens=MAX_TOKENS,
-                system=_SYSTEM,
+                system=_SYSTEM + untrusted.INSTRUCTION,
                 output_config={"format": ANGLE_SCHEMA, "effort": "medium"},
                 messages=[
                     {

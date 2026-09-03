@@ -8,6 +8,8 @@ import json
 
 import anthropic
 
+from bce import untrusted
+
 MODEL = "claude-opus-5"
 MAX_TOKENS = 2048
 
@@ -109,12 +111,15 @@ class ProfileClient:
             response = self.client.messages.create(
                 model=MODEL,
                 max_tokens=MAX_TOKENS,
-                system=_SYSTEM,
+                system=_SYSTEM + untrusted.INSTRUCTION,
                 output_config={"format": PROFILE_SCHEMA, "effort": "medium"},
                 messages=[
                     {
                         "role": "user",
-                        "content": f"Analyse the voice of these articles:\n\n{joined}",
+                        "content": (
+                            "Analyse the voice of these articles:\n\n"
+                            + untrusted.fence(joined, "broker articles")
+                        ),
                     }
                 ],
             )

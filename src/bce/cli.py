@@ -1,9 +1,10 @@
 """CLI entry point. Enforces the spec §6 volume cap."""
 import argparse
+import os
 import sys
 from pathlib import Path
 
-from bce import db, discover, drafting, keywords, profile, qualify, seed
+from bce import db, discover, drafting, keywords, netguard, profile, qualify, seed
 from bce.angles import AngleClient
 from bce.draft import DraftClient
 from bce.embeddings import EmbeddingClient
@@ -371,9 +372,39 @@ def cmd_seed_example(db_path: str) -> int:
     return 0
 
 
+def is_loopback_host(host: str) -> bool:
+    """Whether binding here keeps the panel off the network."""
+    if (host or "").strip().lower() in ("localhost", ""):
+        return True
+    address = netguard.literal_address(host)
+    return address is not None and address.is_loopback
+
+
 def cmd_serve(db_path: str, host: str = "127.0.0.1", port: int = 8000) -> int:
+    """Serve the operator UI (spec §9).
+
+    Refuses a non-loopback bind unless an operator password is set. §9's
+    "localhost only, no auth" was a comment, so `--host 0.0.0.0` would have
+    published the draft queue, the broker list and two POST endpoints to the
+    network with no login -- finding 2 of the 2026-09-02 risk assessment. The
+    refusal is the enforcement: the assumption is now checked at the one place
+    it can be violated.
+    """
     import uvicorn
-    from bce.web.app import create_app
+    from bce.web.app import PASSWORD_ENV, create_app
+
+    if not is_loopback_host(host) and not os.environ.get(PASSWORD_ENV):
+        print(
+            f"refused: --host {host} would expose the operator panel beyond this "
+            f"machine with no authentication.\n"
+            f"  Either bind to 127.0.0.1 (the default), or set {PASSWORD_ENV} to "
+            f"require a password.\n"
+            f"  Even with a password, put it behind a firewall or VPN rather than "
+            f"on an open interface."
+        )
+        return 1
+    if os.environ.get(PASSWORD_ENV):
+        print(f"authentication: enabled ({PASSWORD_ENV} is set)")
     print(f"http://{host}:{port}")
     uvicorn.run(create_app(db_path), host=host, port=port, log_level="warning")
     return 0

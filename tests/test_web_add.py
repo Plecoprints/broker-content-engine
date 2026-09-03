@@ -7,11 +7,21 @@ from bce.web.app import create_app
 
 
 def _client(tmp_path):
+    """A client that carries the CSRF token on every request.
+
+    The token is required on state-changing endpoints since 2026-09-02
+    (IT risk assessment, finding 3). Attaching it here rather than at each
+    call site keeps these tests about what they were about; the control
+    itself is covered in `test_web_security.py`, including that a POST
+    without it is refused.
+    """
     path = str(tmp_path / "ui.db")
     conn = db.connect(path)
     db.init_schema(conn)
     conn.close()
-    return TestClient(create_app(path)), path
+    app = create_app(path)
+    client = TestClient(app, headers={"X-CSRF-Token": app.state.csrf_token})
+    return client, path
 
 
 def _csv(text):

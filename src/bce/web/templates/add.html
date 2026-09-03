@@ -15,7 +15,7 @@
       be bare hostnames or full URLs — <code>https://www.acme.com/</code> and
       <code>acme.com</code> both resolve to the same broker.
     </p>
-    <form method="post" action="/add/csv" enctype="multipart/form-data">
+    <form method="post" action="/add/csv?csrf={{ csrf_token() }}" enctype="multipart/form-data">
       <label for="file">CSV file</label>
       <input type="file" id="file" name="file" accept=".csv,text/csv" required>
       <button type="submit">Import CSV</button>
@@ -24,7 +24,7 @@
 
   <section class="panel">
     <h2>Add one broker manually</h2>
-    <form method="post" action="/add/manual">
+    <form method="post" action="/add/manual?csrf={{ csrf_token() }}">
       <label for="name">Name</label>
       <input type="text" id="name" name="name" required>
 

@@ -39,6 +39,8 @@ than one format would read them as incoherent with each other.
 """
 import anthropic
 
+from bce import untrusted
+
 MODEL = "claude-opus-5"
 
 #: Spec §5: the pillar (`long`) target is a fixed 2000-2300 words, not this
@@ -326,7 +328,7 @@ class DraftClient:
         if guidance := _keyword_guidance(keywords):
             user_content += f"\n\n{guidance}"
         return self._create(
-            system=_LONG_SYSTEM, user_content=user_content, max_tokens=MAX_TOKENS_LONG
+            system=_LONG_SYSTEM + untrusted.INSTRUCTION, user_content=user_content, max_tokens=MAX_TOKENS_LONG
         )
 
     def write_medium(
@@ -354,7 +356,7 @@ class DraftClient:
             lines.append(guidance)
         user_content = "\n\n".join(lines)
         return self._create(
-            system=_MEDIUM_SYSTEM, user_content=user_content, max_tokens=MAX_TOKENS_MEDIUM
+            system=_MEDIUM_SYSTEM + untrusted.INSTRUCTION, user_content=user_content, max_tokens=MAX_TOKENS_MEDIUM
         )
 
     def write_short(
@@ -380,5 +382,5 @@ class DraftClient:
         if guidance := _keyword_guidance(keywords):
             user_content += f"\n\n{guidance}"
         return self._create(
-            system=_SHORT_SYSTEM, user_content=user_content, max_tokens=MAX_TOKENS_SHORT
+            system=_SHORT_SYSTEM + untrusted.INSTRUCTION, user_content=user_content, max_tokens=MAX_TOKENS_SHORT
         )
