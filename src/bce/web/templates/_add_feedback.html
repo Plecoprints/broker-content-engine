@@ -1,0 +1,12 @@
+{#
+  Feedback fragment for the Add-brokers page. Rendered on its own and swapped
+  in by htmx (see web/app.py `_result`), or included inline on first load.
+  Renders the running count always, and a flash only when there is a message.
+#}
+{% if message %}
+  <div class="flash {{ 'flash-ok' if ok else 'flash-error' }}" data-testid="flash-message">{{ message }}</div>
+{% endif %}
+<p class="panel__note" data-testid="broker-count">
+  <strong>{{ existing }}</strong> of {{ max_brokers }} brokers currently in the list.{% if ok and message %}
+  &nbsp;<a href="/">View the shortlist &rarr;</a>{% endif %}
+</p>

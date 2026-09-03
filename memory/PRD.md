@@ -26,10 +26,30 @@ logic from https://sunreef-catamarans.com/en/80-power-next/ and apply it."
 - Preserved all routes, CSRF token placement, exact copy strings, class names
   (`keyword-panel`/`empty-state`/`pill-*`), and the "no literal None leaks" guarantee.
 
+## Iteration 2 (this session) — portal + HTMX + reading view
+- **Broker portal is now live** at `GET /portal` (`templates/portal.html`) — its own broker-first
+  identity (Fraunces serif, teal accent, broker firm as masthead, Sunreef credited quietly via a
+  provenance strip; Sunreef brass used ONLY for the delivered/archive tag). Honors §9b hard rules:
+  no `score`, no `sunreef_relevance`, no Semrush figures (keyword phrases only). Slate is a curated
+  demo (`_PORTAL_SLATE` in app.py — queue/schema still undesigned); "Collected" is driven by the
+  real seeded broker + drafts.
+- **HTMX turned on** — vendored locally at `src/bce/web/static/htmx.min.js`, mounted at `/static`.
+  Add-broker forms `hx-post` and swap an in-place feedback fragment (`_add_feedback.html`) via the
+  new `_result()` helper (branches on the `HX-Request` header). Non-HTMX posts still 303-redirect,
+  so every existing test is untouched.
+- **Draft reading view** — `draft_viewer.html` now has Pillar/Regular/Newsletter tabs (switch in
+  place; all three still rendered server-side so tests pass), a narrower reading column, and a
+  one-tap Copy per draft. New `GET /portal/download/{draft_id}` serves a draft as a .txt attachment;
+  portal Copy/Download buttons use it.
+
 ## Verification
-- Full suite green: **755 passed** (no network, no API keys).
-- Visual pass in light + dark: shortlist (stat grid + table), add (two forms), draft viewer
-  (angle card, three draft cards, keyword + gate panels, unvetted notice).
+- Full suite green after both iterations: **755 passed** (no network, no API keys).
+- Curl-verified: `/portal` 200, `/static/htmx.min.js` 200, `/portal/download/1` 200, HTMX manual-add
+  returns the feedback fragment with updated count.
+- Visual pass in light + dark for: shortlist, add (HTMX in-place), draft viewer (tabs + copy),
+  portal (slate + collected).
+- NOTE: no automated browser test run — app serves on `localhost:8000` via CLI (not the standard
+  preview port), so verification is the passing unit suite + curl + screenshots.
 
 ## Backlog / next
 - P1: Apply the same system to the external **broker portal** — but per `design/README.md`

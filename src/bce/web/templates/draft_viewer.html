@@ -54,63 +54,153 @@
       </div>
     </section>
 
-    <section class="card rise" data-testid="long-draft-card">
-      <p class="eyebrow card__eyebrow">Pillar</p>
-      <h2>Long draft</h2>
-      {% if long_draft %}
-        <p class="card__meta">
-          {% if long_draft["word_count"] is not none %}{{ long_draft["word_count"] }} words{% else %}word count unknown{% endif %}
-        </p>
-        <div class="prose">
-          {% for para in long_draft["body_md"] | paragraphs %}<p>{{ para }}</p>{% endfor %}
-        </div>
-        {{ keyword_panel(long_keywords, max_difficulty, min_volume) }}
-        {{ gate_panel(long_draft, uniqueness_threshold) }}
-      {% else %}
-        <p class="muted">No long draft on file for this angle.</p>
-      {% endif %}
-    </section>
+    <div class="tabs rise" role="tablist" aria-label="Draft formats" data-testid="draft-tabs">
+      <button class="tab" role="tab" aria-selected="true" data-target="panel-long" data-testid="tab-long">
+        Pillar{% if long_draft and long_draft["word_count"] is not none %}<span class="tab__count">{{ long_draft["word_count"] }}w</span>{% endif %}
+      </button>
+      <button class="tab" role="tab" aria-selected="false" data-target="panel-medium" data-testid="tab-medium">
+        Regular post{% if medium_draft and medium_draft["word_count"] is not none %}<span class="tab__count">{{ medium_draft["word_count"] }}w</span>{% endif %}
+      </button>
+      <button class="tab" role="tab" aria-selected="false" data-target="panel-short" data-testid="tab-short">
+        Newsletter{% if short_draft and short_draft["word_count"] is not none %}<span class="tab__count">{{ short_draft["word_count"] }}w</span>{% endif %}
+      </button>
+    </div>
 
-    <section class="card rise" data-testid="medium-draft-card">
-      <p class="eyebrow card__eyebrow">Regular post</p>
-      <h2>Medium draft</h2>
-      {% if medium_draft %}
-        <p class="card__meta">
-          {% if medium_draft["word_count"] is not none %}{{ medium_draft["word_count"] }} words{% else %}word count unknown{% endif %}
-        </p>
-        <div class="prose">
-          {% for para in medium_draft["body_md"] | paragraphs %}<p>{{ para }}</p>{% endfor %}
+    <div class="draft-panel" id="panel-long" role="tabpanel">
+      <section class="card" data-testid="long-draft-card">
+        <div class="card__bar">
+          <div>
+            <p class="eyebrow card__eyebrow">Pillar</p>
+            <h2>Long draft</h2>
+          </div>
+          <span class="spacer"></span>
+          {% if long_draft %}
+            <button class="copybtn" type="button" data-copy="panel-long" data-testid="copy-long">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              <span class="copybtn__label">Copy</span>
+            </button>
+          {% endif %}
         </div>
-        {{ keyword_panel(medium_keywords, max_difficulty, min_volume) }}
-        {{ gate_panel(medium_draft, uniqueness_threshold) }}
-      {% else %}
-        <div class="empty-state">
-          <p>Medium condensation failed for this draft. The long draft above was written, but condensing it
-          to this broker's own typical article length did not succeed. Run
-          <code>bce redraft {{ broker["domain"] }}</code> to try again.</p>
-        </div>
-      {% endif %}
-    </section>
+        {% if long_draft %}
+          <p class="card__meta">
+            {% if long_draft["word_count"] is not none %}{{ long_draft["word_count"] }} words{% else %}word count unknown{% endif %}
+          </p>
+          <div class="prose reading">
+            {% for para in long_draft["body_md"] | paragraphs %}<p>{{ para }}</p>{% endfor %}
+          </div>
+          {{ keyword_panel(long_keywords, max_difficulty, min_volume) }}
+          {{ gate_panel(long_draft, uniqueness_threshold) }}
+        {% else %}
+          <p class="muted">No long draft on file for this angle.</p>
+        {% endif %}
+      </section>
+    </div>
 
-    <section class="card rise" data-testid="short-draft-card">
-      <p class="eyebrow card__eyebrow">Newsletter</p>
-      <h2>Short draft</h2>
-      {% if short_draft %}
-        <p class="card__meta">
-          {% if short_draft["word_count"] is not none %}{{ short_draft["word_count"] }} words{% else %}word count unknown{% endif %}
-        </p>
-        <div class="prose">
-          {% for para in short_draft["body_md"] | paragraphs %}<p>{{ para }}</p>{% endfor %}
+    <div class="draft-panel" id="panel-medium" role="tabpanel" hidden>
+      <section class="card" data-testid="medium-draft-card">
+        <div class="card__bar">
+          <div>
+            <p class="eyebrow card__eyebrow">Regular post</p>
+            <h2>Medium draft</h2>
+          </div>
+          <span class="spacer"></span>
+          {% if medium_draft %}
+            <button class="copybtn" type="button" data-copy="panel-medium" data-testid="copy-medium">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              <span class="copybtn__label">Copy</span>
+            </button>
+          {% endif %}
         </div>
-        {{ keyword_panel(short_keywords, max_difficulty, min_volume) }}
-        {{ gate_panel(short_draft, uniqueness_threshold) }}
-      {% else %}
-        <div class="empty-state">
-          <p>Short condensation failed for this draft. The long draft above was written, but condensing it
-          to short form did not succeed. Run <code>bce redraft {{ broker["domain"] }}</code> to try again.</p>
+        {% if medium_draft %}
+          <p class="card__meta">
+            {% if medium_draft["word_count"] is not none %}{{ medium_draft["word_count"] }} words{% else %}word count unknown{% endif %}
+          </p>
+          <div class="prose reading">
+            {% for para in medium_draft["body_md"] | paragraphs %}<p>{{ para }}</p>{% endfor %}
+          </div>
+          {{ keyword_panel(medium_keywords, max_difficulty, min_volume) }}
+          {{ gate_panel(medium_draft, uniqueness_threshold) }}
+        {% else %}
+          <div class="empty-state">
+            <p>Medium condensation failed for this draft. The long draft above was written, but condensing it
+            to this broker's own typical article length did not succeed. Run
+            <code>bce redraft {{ broker["domain"] }}</code> to try again.</p>
+          </div>
+        {% endif %}
+      </section>
+    </div>
+
+    <div class="draft-panel" id="panel-short" role="tabpanel" hidden>
+      <section class="card" data-testid="short-draft-card">
+        <div class="card__bar">
+          <div>
+            <p class="eyebrow card__eyebrow">Newsletter</p>
+            <h2>Short draft</h2>
+          </div>
+          <span class="spacer"></span>
+          {% if short_draft %}
+            <button class="copybtn" type="button" data-copy="panel-short" data-testid="copy-short">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              <span class="copybtn__label">Copy</span>
+            </button>
+          {% endif %}
         </div>
-      {% endif %}
-    </section>
+        {% if short_draft %}
+          <p class="card__meta">
+            {% if short_draft["word_count"] is not none %}{{ short_draft["word_count"] }} words{% else %}word count unknown{% endif %}
+          </p>
+          <div class="prose reading">
+            {% for para in short_draft["body_md"] | paragraphs %}<p>{{ para }}</p>{% endfor %}
+          </div>
+          {{ keyword_panel(short_keywords, max_difficulty, min_volume) }}
+          {{ gate_panel(short_draft, uniqueness_threshold) }}
+        {% else %}
+          <div class="empty-state">
+            <p>Short condensation failed for this draft. The long draft above was written, but condensing it
+            to short form did not succeed. Run <code>bce redraft {{ broker["domain"] }}</code> to try again.</p>
+          </div>
+        {% endif %}
+      </section>
+    </div>
+
+    <script>
+      (function () {
+        var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs [role="tab"]'));
+        function show(targetId) {
+          tabs.forEach(function (t) {
+            var on = t.getAttribute('data-target') === targetId;
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+            var panel = document.getElementById(t.getAttribute('data-target'));
+            if (panel) { panel.hidden = !on; }
+          });
+        }
+        tabs.forEach(function (t) {
+          t.addEventListener('click', function () { show(t.getAttribute('data-target')); });
+        });
+
+        document.querySelectorAll('.copybtn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var panel = document.getElementById(btn.getAttribute('data-copy'));
+            var prose = panel ? panel.querySelector('.prose') : null;
+            if (!prose) { return; }
+            var text = prose.innerText.trim();
+            var done = function () {
+              btn.classList.add('is-done');
+              var label = btn.querySelector('.copybtn__label');
+              var prev = label ? label.textContent : '';
+              if (label) { label.textContent = 'Copied'; }
+              setTimeout(function () {
+                btn.classList.remove('is-done');
+                if (label) { label.textContent = prev; }
+              }, 1600);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(done).catch(function () {});
+            }
+          });
+        });
+      })();
+    </script>
   {% else %}
     <div class="empty-state rise" data-testid="no-draft-empty-state">
       <p>No draft yet for this broker. Run <code>bce draft</code> to propose an angle and write one.</p>

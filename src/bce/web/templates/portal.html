@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>This week's angles{% if broker %} — {{ broker["name"] }}{% endif %}</title>
+<script>
+  (function () {
+    try {
+      var s = localStorage.getItem("portal-theme");
+      if (s === "light" || s === "dark") document.documentElement.setAttribute("data-theme", s);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* ============================================================
+   BROKER PORTAL — a broker's own editorial desk.
+   Deliberately NOT a Sunreef brand surface: the accent is a cool
+   editorial teal, the masthead is the broker's firm, and Sunreef's
+   brass appears only to mark work already delivered (the archive).
+   Sunreef is credited once, quietly, like a publisher's imprint.
+   Hard rules (spec §9b): never show score or sunreef_relevance, and
+   never a single Semrush figure — keyword phrases only.
+   ============================================================ */
+:root {
+  color-scheme: light;
+  --bg:        #EEF3F3;
+  --surface:   #FFFFFF;
+  --sunk:      #E7EFEF;
+  --band:      #E0ECEC;
+  --ink:       #10272C;
+  --ink-soft:  #47606A;
+  --ink-dim:   #6F888F;
+  --outline:   #CFDDDE;
+  --outline-soft: #E0EAEA;
+  --accent:      #0E6E62;
+  --accent-press:#0A544B;
+  --accent-faint:#E4F1EE;
+  --on-accent:   #FBFEFD;
+  --archive:      #96692A;
+  --archive-faint:#F8F1E4;
+  --archive-line: #E3D2B3;
+
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --ui:    "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --mono:  "IBM Plex Mono", ui-monospace, Consolas, monospace;
+
+  --gut: clamp(1.25rem, 4vw, 3rem);
+  --ease: cubic-bezier(.22,.61,.36,1);
+  --r: 14px;
+  --sh: 0 1px 2px rgb(16 39 44 / .04), 0 14px 34px -22px rgb(16 39 44 / .30);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg:        #06181D;
+    --surface:   #0C2830;
+    --sunk:      #0A222A;
+    --band:      #0A2129;
+    --ink:       #E2ECEA;
+    --ink-soft:  #93AAB0;
+    --ink-dim:   #6E878E;
+    --outline:   #22424B;
+    --outline-soft: #17323A;
+    --accent:      #55C3B2;
+    --accent-press:#79D6C7;
+    --accent-faint:#0D3833;
+    --on-accent:   #04211E;
+    --archive:      #D8A860;
+    --archive-faint:#2A2010;
+    --archive-line: #3A2C14;
+    --sh: 0 1px 2px rgb(0 0 0 / .4), 0 18px 38px -22px rgb(0 0 0 / .7);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg:        #06181D;
+  --surface:   #0C2830;
+  --sunk:      #0A222A;
+  --band:      #0A2129;
+  --ink:       #E2ECEA;
+  --ink-soft:  #93AAB0;
+  --ink-dim:   #6E878E;
+  --outline:   #22424B;
+  --outline-soft: #17323A;
+  --accent:      #55C3B2;
+  --accent-press:#79D6C7;
+  --accent-faint:#0D3833;
+  --on-accent:   #04211E;
+  --archive:      #D8A860;
+  --archive-faint:#2A2010;
+  --archive-line: #3A2C14;
+  --sh: 0 1px 2px rgb(0 0 0 / .4), 0 18px 38px -22px rgb(0 0 0 / .7);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--ui); font-size: 16px; line-height: 1.58;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+h1, h2, h3 { margin: 0; font-family: var(--serif); font-weight: 500; text-wrap: balance; }
+p { margin: 0; }
+ol, ul { margin: 0; padding: 0; list-style: none; }
+a { color: var(--accent); text-underline-offset: .18em; }
+::selection { background: var(--accent); color: var(--on-accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+.shell { max-width: 1120px; margin-inline: auto; padding-inline: var(--gut); }
+.mono { font-family: var(--mono); font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; }
+
+/* ---- app bar ---- */
+.topband { background: var(--band); border-bottom: 1px solid var(--outline); }
+.appbar { position: sticky; top: 0; z-index: 20; background: var(--band); }
+.appbar__inner { display: flex; align-items: center; gap: 1.25rem; min-height: 66px; }
+.brand { display: flex; align-items: center; gap: .8rem; margin-right: auto; min-width: 0; }
+.brand__mark {
+  display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 9px;
+  background: var(--ink); color: var(--surface); font-family: var(--serif); font-size: 1rem; font-weight: 600;
+}
+.brand__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.brand__name { font-family: var(--serif); font-size: 1.12rem; font-weight: 600; }
+.brand__sub { color: var(--ink-dim); }
+.tabs { display: flex; gap: .2rem; }
+.tab {
+  position: relative; padding: .55rem .8rem; border-radius: 8px; text-decoration: none;
+  font-size: .82rem; font-weight: 500; color: var(--ink-soft);
+  transition: background-color .16s var(--ease), color .16s var(--ease);
+}
+.tab:hover { background: var(--sunk); color: var(--ink); }
+.tab[aria-current="page"] { color: var(--ink); }
+.tab[aria-current="page"]::after {
+  content: ""; position: absolute; left: .8rem; right: .8rem; bottom: -13px; height: 2px;
+  background: var(--accent); border-radius: 2px 2px 0 0;
+}
+.tab__count {
+  margin-left: .4rem; padding: 0 6px; border-radius: 999px; background: var(--accent-faint);
+  color: var(--accent); font-family: var(--mono); font-size: .6rem; line-height: 17px;
+}
+.appbar__end { display: flex; align-items: center; gap: .6rem; flex: none; }
+.iconbtn {
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; cursor: pointer;
+  background: transparent; color: var(--ink-soft); border: 1px solid var(--outline);
+  transition: color .16s var(--ease), border-color .16s var(--ease), background-color .16s var(--ease);
+}
+.iconbtn:hover { color: var(--ink); border-color: var(--accent); }
+.iconbtn svg { width: 17px; height: 17px; }
+.iconbtn .moon { display: none; }
+:root[data-theme="dark"] .iconbtn .sun { display: none; }
+:root[data-theme="dark"] .iconbtn .moon { display: block; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .iconbtn .sun { display: none; } :root:not([data-theme="light"]) .iconbtn .moon { display: block; } }
+.avatar {
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px;
+  background: var(--accent-faint); color: var(--accent); font-family: var(--mono); font-size: .68rem; font-weight: 500;
+}
+
+/* ---- provenance: Sunreef as source, sized as a credit ---- */
+.provenance { background: var(--sunk); border-block: 1px solid var(--outline-soft); }
+.provenance__inner {
+  display: flex; align-items: center; gap: .9rem; padding-block: .6rem;
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim);
+}
+.provenance strong { color: var(--ink-soft); font-weight: 500; }
+.provenance__rule { flex: 1 1 auto; height: 1px; background: var(--outline); min-width: 1rem; }
+
+/* ---- week header ---- */
+.week { padding-block: clamp(2rem, 5vw, 3.25rem) clamp(1.75rem, 4vw, 2.5rem); }
+.week__meta { display: flex; align-items: center; gap: .7rem; color: var(--accent); margin-bottom: 1rem; }
+.week__meta .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-faint); }
+.week h1 { font-size: clamp(2.2rem, 5.5vw, 3.6rem); line-height: 1.04; letter-spacing: -.02em; max-width: 18ch; }
+.week h1 em { font-style: italic; font-weight: 400; }
+.week__lede { margin-top: 1rem; max-width: 60ch; font-size: 1.05rem; color: var(--ink-soft); }
+.week__lede b { color: var(--ink); font-weight: 600; }
+.cycle {
+  margin-top: 1.75rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.75rem;
+  padding: .8rem 1.1rem; background: var(--surface); border: 1px solid var(--outline-soft);
+  border-radius: 10px; box-shadow: var(--sh);
+}
+.meter { display: flex; align-items: flex-end; gap: 3px; }
+.meter i { width: 15px; height: 6px; border-radius: 2px; background: var(--sunk); border: 1px solid var(--outline-soft); }
+.meter i.done { background: var(--outline); border-color: var(--outline); }
+.meter i.today { background: var(--accent); border-color: var(--accent); height: 12px; }
+.fact { display: flex; align-items: baseline; gap: .5rem; }
+.fact .k { color: var(--ink-dim); }
+.fact .v { font-size: .84rem; font-weight: 600; }
+.fact .v.accent { color: var(--accent); }
+.cycle__spacer { flex: 1 1 auto; }
+
+/* ---- section head ---- */
+.section-head { display: flex; align-items: center; gap: .9rem; padding-bottom: 1rem; border-bottom: 1px solid var(--outline); margin-bottom: 1.5rem; }
+.section-head h2 { font-size: 1.3rem; }
+.section-head .spacer { flex: 1 1 auto; }
+.section-head .mono { color: var(--ink-dim); }
+
+/* ---- slate ---- */
+.slate-section { padding-top: clamp(1.5rem, 3vw, 2.5rem); }
+.slate { display: grid; gap: 1.25rem; padding-bottom: clamp(2.5rem, 5vw, 4rem); }
+.angle {
+  display: grid; grid-template-columns: 54px minmax(0,1fr); gap: 0 1.25rem;
+  padding: clamp(1.4rem, 3vw, 2rem); background: var(--surface); border: 1px solid var(--outline-soft);
+  border-radius: var(--r); box-shadow: var(--sh);
+  transition: box-shadow .2s var(--ease), border-color .2s var(--ease), transform .2s var(--ease);
+}
+.angle:hover { border-color: var(--outline); transform: translateY(-2px); box-shadow: 0 6px 14px -6px rgb(16 39 44 / .18), 0 24px 48px -30px rgb(16 39 44 / .4); }
+.angle__index { grid-row: 1 / span 5; font-family: var(--mono); font-size: 1.3rem; color: var(--ink-dim); line-height: 1; padding-top: 4px; }
+.angle__title { font-size: clamp(1.35rem, 2.4vw, 1.7rem); line-height: 1.2; letter-spacing: -.01em; max-width: 32ch; }
+.angle__premise { margin-top: .8rem; max-width: 66ch; color: var(--ink-soft); font-size: .96rem; line-height: 1.62; }
+.value { margin-top: 1.1rem; padding: .85rem 1.1rem; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; background: var(--accent-faint); }
+.value__label { color: var(--accent); display: block; margin-bottom: .3rem; }
+.value p { font-size: .93rem; line-height: 1.58; max-width: 64ch; color: var(--ink); }
+.angle__foot { margin-top: 1.25rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.chips { display: flex; gap: .5rem; flex: 1 1 300px; min-width: 0; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.chips__label { flex: none; color: var(--ink-dim); align-self: center; }
+.chip {
+  flex: none; padding: 4px 10px; border: 1px solid var(--outline-soft); border-radius: 999px;
+  background: var(--sunk); color: var(--ink-soft); font-family: var(--mono); font-size: .66rem; white-space: nowrap;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; text-decoration: none;
+  font-family: var(--ui); font-size: .86rem; font-weight: 600; letter-spacing: -.005em;
+  padding: .65rem 1.15rem; border-radius: 9px; border: 1px solid transparent;
+  transition: background-color .16s var(--ease), color .16s var(--ease), border-color .16s var(--ease), box-shadow .16s var(--ease);
+}
+.btn--filled { background: var(--accent); color: var(--on-accent); box-shadow: var(--sh); }
+.btn--filled:hover { background: var(--accent-press); }
+.btn--filled svg { width: 15px; height: 15px; }
+.btn--text { background: transparent; color: var(--ink-soft); border-color: var(--outline); font-weight: 500; font-size: .78rem; padding: .5rem .8rem; }
+.btn--text:hover { border-color: var(--accent); color: var(--accent); }
+.btn--text.is-done { color: var(--accent); border-color: var(--accent); }
+.angle.is-chosen { border-color: var(--accent); }
+.chosen-note {
+  display: none; margin-top: .2rem; align-items: center; gap: .5rem; color: var(--accent);
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .06em;
+}
+.angle.is-chosen .chosen-note { display: inline-flex; }
+.angle.is-chosen .angle__choose { display: none; }
+
+/* ---- collected: brass register, past tense ---- */
+.collected { padding-bottom: clamp(3rem, 6vw, 5rem); }
+.pick { border: 1px solid var(--outline-soft); border-radius: var(--r); background: var(--surface); overflow: hidden; box-shadow: var(--sh); }
+.pick__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1rem; padding: 1.1rem 1.4rem; border-bottom: 1px solid var(--outline-soft); }
+.pick__head h3 { font-size: 1.15rem; line-height: 1.3; max-width: 48ch; }
+.tag {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 999px;
+  background: var(--archive-faint); color: var(--archive); border: 1px solid var(--archive-line);
+  font-family: var(--mono); font-size: .6rem; letter-spacing: .08em; text-transform: uppercase; flex: none;
+}
+.tag svg { width: 11px; height: 11px; }
+.file { display: grid; grid-template-columns: minmax(150px,1.4fr) minmax(80px,.5fr) auto; align-items: center; gap: 1rem; padding: .9rem 1.4rem; border-bottom: 1px solid var(--outline-soft); }
+.file:last-child { border-bottom: 0; }
+.file__name { display: flex; align-items: center; gap: .7rem; font-size: .95rem; font-weight: 500; }
+.file__dot { width: 8px; height: 8px; border-radius: 999px; background: var(--archive); flex: none; }
+.file__dot.pending { background: transparent; border: 1.5px solid var(--accent); }
+.file__len { font-family: var(--mono); font-size: .72rem; color: var(--ink-dim); }
+.file__acts { display: flex; gap: .5rem; justify-self: end; }
+.pick__foot { padding: .9rem 1.4rem; background: var(--sunk); border-top: 1px solid var(--outline-soft); display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: baseline; font-size: .82rem; color: var(--ink-soft); }
+.pick__foot .mono { color: var(--ink-dim); }
+
+/* ---- foot ---- */
+.foot { border-top: 1px solid var(--outline); background: var(--surface); padding-block: 2rem 2.75rem; }
+.foot__grid { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); }
+.foot h4 { font-family: var(--serif); font-size: 1.05rem; margin-bottom: .3rem; }
+.foot p { font-size: .84rem; color: var(--ink-soft); max-width: 44ch; line-height: 1.6; }
+.foot .mono { color: var(--ink-dim); display: block; margin-bottom: .5rem; }
+.foot__bar { margin-top: 1.75rem; padding-top: 1rem; border-top: 1px solid var(--outline-soft); display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; align-items: center; font-family: var(--mono); font-size: .6rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); }
+.foot__bar .spacer { flex: 1 1 auto; }
+
+.empty { padding: 3.5rem 1.5rem; text-align: center; color: var(--ink-soft); border: 1px dashed var(--outline); border-radius: var(--r); background: var(--surface); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .angle { animation: rise .6s var(--ease) both; }
+  .slate .angle:nth-child(2) { animation-delay: .06s; }
+  .slate .angle:nth-child(3) { animation-delay: .12s; }
+  .slate .angle:nth-child(4) { animation-delay: .18s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+}
+@media (max-width: 860px) { .tabs { display: none; } .brand__sub { display: none; } }
+@media (max-width: 640px) {
+  .angle { grid-template-columns: minmax(0,1fr); }
+  .angle__index { grid-row: auto; margin-bottom: .4rem; }
+  .btn--filled { width: 100%; justify-content: center; }
+  .file { grid-template-columns: minmax(0,1fr) auto; }
+  .file__len { grid-column: 1; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .angle:hover { transform: none; } }
+</style>
+</head>
+<body>
+{% set fname = broker["name"] if broker else "Your Brokerage" %}
+{% set parts = fname.split() %}
+{% set initials = (parts[0][0] ~ (parts[1][0] if parts|length > 1 else ""))|upper %}
+
+<div class="topband">
+  <header class="appbar">
+    <div class="shell appbar__inner">
+      <div class="brand">
+        <span class="brand__mark" aria-hidden="true" data-testid="portal-brand-mark">{{ initials }}</span>
+        <span class="brand__text">
+          <span class="brand__name" data-testid="portal-broker-name">{{ fname }}</span>
+          <span class="brand__sub mono">{% if broker and broker["region"] %}{{ broker["region"] }} · {% endif %}Editorial desk</span>
+        </span>
+      </div>
+      <nav class="tabs" aria-label="Sections">
+        <a class="tab" href="#" aria-current="page">This week<span class="tab__count">{{ slate|length }}</span></a>
+        <a class="tab" href="#collected">Collected</a>
+        <a class="tab" href="#">Your voice profile</a>
+        <a class="tab" href="#">Account</a>
+      </nav>
+      <div class="appbar__end">
+        <button class="iconbtn" id="theme" type="button" aria-label="Switch colour scheme" data-testid="portal-theme-toggle">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.1"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.6A8.6 8.6 0 1 1 9.4 3.5a6.9 6.9 0 0 0 11.1 11.1z"/></svg>
+        </button>
+        <span class="avatar" title="{{ fname }}">{{ initials }}</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="provenance">
+    <div class="shell provenance__inner">
+      <span>Editorial angles from <strong>Sunreef Yachts</strong></span>
+      <span class="provenance__rule" aria-hidden="true"></span>
+      <span>Reviewed by a person before they reach you</span>
+    </div>
+  </div>
+
+  <section class="week shell">
+    <p class="mono week__meta"><span class="dot" aria-hidden="true"></span>This week · curated for {{ fname }}</p>
+    <h1>{{ slate|length }} angles <em>for you</em> this week.</h1>
+    <p class="week__lede">
+      Pick the one you'd actually want on your journal. It comes back as <b>three finished pieces in your
+      voice</b> — a long pillar, a medium post and a short newsletter item — for you to edit and publish under
+      your own byline.
+    </p>
+    <div class="cycle">
+      <div class="meter" role="img" aria-label="Part-way through this cycle">
+        <i class="done"></i><i class="done"></i><i class="done"></i><i class="today"></i><i></i><i></i><i></i>
+      </div>
+      <div class="fact"><span class="mono k">Choose by</span><span class="v accent">Sunday</span></div>
+      <div class="fact"><span class="mono k">Slate</span><span class="v">Fixed this week</span></div>
+      <div class="fact"><span class="mono k">Delivery</span><span class="v">~24h after you choose</span></div>
+      <span class="cycle__spacer"></span>
+      <div class="fact"><span class="mono k">Your voice</span><span class="v">On file</span></div>
+    </div>
+  </section>
+</div><!-- /topband -->
+
+<main class="shell">
+  <section class="slate-section" aria-labelledby="slate-h">
+    <div class="section-head">
+      <h2 id="slate-h">This week's slate</h2>
+      <span class="spacer"></span>
+      <span class="mono">One choice · no reroll</span>
+    </div>
+
+    <ol class="slate" data-testid="portal-slate">
+      {% for a in slate %}
+        <li class="angle" data-testid="portal-angle">
+          <span class="angle__index" aria-hidden="true">{{ "%02d"|format(loop.index) }}</span>
+          <div>
+            <h3 class="angle__title">{{ a.title }}</h3>
+            <p class="angle__premise">{{ a.premise }}</p>
+            <div class="value">
+              <span class="mono value__label">Why your readers would want it</span>
+              <p>{{ a.audience_value }}</p>
+            </div>
+            <div class="angle__foot">
+              <div class="chips">
+                <span class="mono chips__label">Searches</span>
+                {% for c in a.chips %}<span class="chip">{{ c }}</span>{% endfor %}
+              </div>
+              <button class="btn btn--filled angle__choose" type="button" data-testid="choose-angle-{{ loop.index }}">
+                Choose this angle
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+              </button>
+              <span class="chosen-note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.2 5.2L20 7"/></svg>
+                Chosen — your three pieces follow after review
+              </span>
+            </div>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <section class="collected" id="collected" aria-labelledby="collected-h">
+    <div class="section-head">
+      <h2 id="collected-h">Ready to collect</h2>
+      <span class="spacer"></span>
+      <span class="mono">From your last choice</span>
+    </div>
+
+    {% if chosen_angle %}
+      <article class="pick" data-testid="portal-collected">
+        <div class="pick__head">
+          <span class="tag">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.2 5.2L20 7"/></svg>
+            You chose
+          </span>
+          <h3>{{ chosen_angle["title"] }}</h3>
+        </div>
+        <div class="files">
+          {% for f in collected %}
+            <div class="file">
+              <span class="file__name">
+                <span class="file__dot{% if not f.available %} pending{% endif %}" aria-hidden="true"></span>
+                {{ f.label }}
+              </span>
+              <span class="file__len">
+                {% if f.available and f.word_count is not none %}{{ f.word_count }} words{% elif f.available %}ready{% else %}not ready yet{% endif %}
+              </span>
+              <span class="file__acts">
+                {% if f.available %}
+                  <button class="btn btn--text copybtn" type="button" data-download="/portal/download/{{ f.draft_id }}" data-testid="portal-copy-{{ f.format }}">Copy</button>
+                  <a class="btn btn--text" href="/portal/download/{{ f.draft_id }}" download data-testid="portal-download-{{ f.format }}">Download</a>
+                {% else %}
+                  <span class="mono" style="color:var(--ink-dim)">pending</span>
+                {% endif %}
+              </span>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="pick__foot">
+          <span class="mono">Usage</span>
+          <span>Edit freely and publish under your own byline. We record only when you copy or download a piece,
+          so next week's angles reflect what you actually ran.</span>
+        </div>
+      </article>
+    {% else %}
+      <div class="empty">
+        <p>Nothing collected yet. Choose an angle above and your three finished pieces will appear here.</p>
+      </div>
+    {% endif %}
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="shell">
+    <div class="foot__grid">
+      <div>
+        <span class="mono">Whose content this is</span>
+        <h4>Yours, entirely.</h4>
+        <p>Published under your byline, edited however you like, on your own site. Sunreef proposes the angles
+        and writes to your voice; nothing is published on your behalf and nothing obliges you to publish.</p>
+      </div>
+      <div>
+        <span class="mono">What we measure</span>
+        <h4>Which pieces get used.</h4>
+        <p>We record when you copy or download a piece, so the following week's angles are shaped by what you
+        actually ran. Nothing else about your visit is tracked, and it is never shared with another broker.</p>
+      </div>
+      <div>
+        <span class="mono">If something is off</span>
+        <h4>Tell a person, not a form.</h4>
+        <p>A real editor at Sunreef reads every reply. Wrong tone, wrong subject, or wrong week — say so, and the
+        next slate changes.</p>
+      </div>
+    </div>
+    <div class="foot__bar">
+      <span>{{ fname }} — Editorial desk</span>
+      <span>Provided by Sunreef Yachts</span>
+      <span class="spacer"></span>
+      <span>Next slate: Monday</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var t = document.getElementById("theme");
+    if (t) t.addEventListener("click", function () {
+      var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      var cur = root.getAttribute("data-theme") || (dark ? "dark" : "light");
+      var next = cur === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem("portal-theme", next); } catch (e) {}
+    });
+
+    // Choose an angle: an in-place confirmation. The queue is not built yet,
+    // so this commits nothing server-side — it confirms the choice visually.
+    document.querySelectorAll(".angle__choose").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var card = btn.closest(".angle");
+        document.querySelectorAll(".angle").forEach(function (c) { c.classList.remove("is-chosen"); });
+        if (card) { card.classList.add("is-chosen"); card.scrollIntoView({ behavior: "smooth", block: "center" }); }
+      });
+    });
+
+    // Copy a finished piece to the clipboard by fetching its text.
+    document.querySelectorAll(".copybtn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var url = btn.getAttribute("data-download");
+        if (!url || !navigator.clipboard) return;
+        fetch(url).then(function (r) { return r.text(); }).then(function (text) {
+          return navigator.clipboard.writeText(text.trim());
+        }).then(function () {
+          btn.classList.add("is-done");
+          var prev = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(function () { btn.classList.remove("is-done"); btn.textContent = prev; }, 1600);
+        }).catch(function () {});
+      });
+    });
+  })();
+</script>
+</body>
+</html>

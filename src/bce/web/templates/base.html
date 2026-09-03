@@ -22,6 +22,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;1,6..96,400;1,6..96,500&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <script src="/static/htmx.min.js" defer></script>
   <style>
     /* ============================================================
        SUNREEF OPERATOR CONSOLE — design system
@@ -357,6 +358,51 @@
     .keyword-panel .empty-state { margin-top: 1rem; padding: 2rem 1.25rem; text-align: left; }
     .claim-list { margin: .6rem 0 0; padding-left: 1.1rem; list-style: disc; }
     .claim-list li { margin-bottom: .6rem; font-size: .9rem; }
+
+    /* ---------- Draft tabs + reading view ---------- */
+    .tabs {
+      display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--rule-soft); padding-bottom: 0;
+    }
+    .tab {
+      font-family: var(--mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--ink-soft); background: transparent; border: none; cursor: pointer;
+      padding: .7rem .95rem; position: relative; border-radius: 6px 6px 0 0;
+      transition: color .16s var(--ease), background-color .16s var(--ease);
+    }
+    .tab:hover { color: var(--ink); background: var(--sunk); }
+    .tab[aria-selected="true"] { color: var(--brass-deep); }
+    .tab[aria-selected="true"]::after {
+      content: ""; position: absolute; left: .5rem; right: .5rem; bottom: -1px; height: 2px;
+      background: var(--brass); border-radius: 2px 2px 0 0;
+    }
+    .tab .tab__count {
+      margin-left: .4rem; padding: 0 .4rem; border-radius: 999px; background: var(--sunk);
+      color: var(--ink-dim); font-size: .9em;
+    }
+    .draft-panel { animation: fade .35s var(--ease) both; }
+    .draft-panel[hidden] { display: none; }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+    .card__bar { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+    .card__bar .spacer { flex: 1 1 auto; }
+    .copybtn {
+      display: inline-flex; align-items: center; gap: .45rem;
+      font-family: var(--mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase;
+      padding: .45rem .8rem; border-radius: 7px; border: 1px solid var(--rule); background: transparent;
+      color: var(--ink-soft); cursor: pointer;
+      transition: border-color .16s var(--ease), color .16s var(--ease), background-color .16s var(--ease);
+    }
+    .copybtn:hover { border-color: var(--brass); color: var(--brass-deep); }
+    .copybtn.is-done { color: var(--signal); border-color: var(--signal); }
+    .copybtn svg { width: 14px; height: 14px; }
+    /* A cleaner reading measure for the draft prose. */
+    .prose.reading { max-width: 66ch; font-size: 1.05rem; line-height: 1.75; }
+    .prose.reading p { margin: 0 0 1.3rem; }
+
+    /* htmx: fade the feedback region as it swaps in */
+    #add-feedback.htmx-swapping { opacity: 0; transition: opacity .12s var(--ease); }
+    #add-feedback { transition: opacity .18s var(--ease); }
 
     /* ---------- Footer ---------- */
     .foot {

@@ -20,6 +20,7 @@ from urllib.parse import urlencode
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from bce import db, discover, keywords, originality
@@ -60,6 +61,132 @@ def _redirect(path: str, message: str, *, ok: bool) -> RedirectResponse:
     """
     query = urlencode({"msg": message, "ok": "1" if ok else "0"})
     return RedirectResponse(url=f"{path}?{query}", status_code=303)
+
+
+def _result(request: Request, conn, path: str, message: str, ok: bool):
+    """One write outcome, two front doors.
+
+    A normal form POST still gets the 303 redirect + flash-in-query it always
+    did (so `bce`'s no-JS path, and every existing test, is untouched). An
+    HTMX request (identified by the `HX-Request` header htmx sets on every
+    call) instead gets just the feedback fragment, which htmx swaps into the
+    page in place -- no navigation, no full reload.
+    """
+    if request.headers.get("hx-request"):
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="_add_feedback.html",
+            context={
+                "message": message, "ok": ok,
+                "existing": _broker_count(conn), "max_brokers": MAX_BROKERS,
+            },
+        )
+    return _redirect(path, message, ok=ok)
+
+
+#: The weekly slate shown in the broker portal (spec §9b). A curated demo set:
+#: the portal's queue and schema are undesigned (STATUS.md), so these angles
+#: stand in for what the engine would propose. Each carries only the three
+#: fields a broker may ever see -- title, premise, audience_value -- plus
+#: keyword *phrases* as chips. `score` and `sunreef_relevance` are internal
+#: and never appear here; nor do any Semrush figures (§9b hard rules).
+_PORTAL_SLATE = [
+    {
+        "title": "Insuring a 60-Foot Catamaran in the Med: What Underwriters Actually Ask",
+        "premise": (
+            "Multihull cover is priced on beam, berth agreement and named-skipper "
+            "qualification far more than on length, which is why a quote for a 60-foot "
+            "catamaran and a 60-foot monohull rarely resemble each other. The piece walks "
+            "through what a Mediterranean underwriter reviews line by line and which of "
+            "those an owner can still change before renewal."
+        ),
+        "audience_value": (
+            "Buyers raise insurance late, usually once an offer is already in. Being the "
+            "person who explained the underwriting logic first reads as advice rather than "
+            "sales, and removes one of the commonest reasons a Med deal stalls in September."
+        ),
+        "chips": ["catamaran insurance", "catamaran boat insurance", "catamaran cost"],
+    },
+    {
+        "title": "Monohull or Multihull: The Six Questions That Decide It",
+        "premise": (
+            "Almost every comparison online argues for one hull form. This one refuses to. "
+            "It sets out the six questions whose answers make the decision for the buyer and "
+            "states the trade-off honestly in both directions, including where a monohull is "
+            "simply the better boat."
+        ),
+        "audience_value": (
+            "It is the comparison your clients have already half-read somewhere worse. A "
+            "version that declines to pick a side positions you as the broker who asks better "
+            "questions than the listing portals -- and it is the most forwarded piece here."
+        ),
+        "chips": ["monohull vs catamaran", "monohull", "catamaran hull characteristics"],
+    },
+    {
+        "title": "Reading a Mediterranean Charter Programme Before You Commit to One",
+        "premise": (
+            "More owners now buy with a charter programme in mind, then discover it quietly "
+            "dictates layout, crew berths and which weeks of August they can use themselves. "
+            "This reads a typical season from the owner's side of the table and separates the "
+            "numbers that hold from the ones that flatter."
+        ),
+        "audience_value": (
+            "Charter economics is where owners feel most exposed to optimism, and the client "
+            "who trusts your arithmetic brings you the purchase. It also earns links from the "
+            "charter-side operators you already work with."
+        ),
+        "chips": ["catamaran charter mediterranean", "catamaran charter croatia", "crewed catamaran charter"],
+    },
+    {
+        "title": "Financing a Multihull: Why the Structure Matters More Than the Rate",
+        "premise": (
+            "Marine lenders treat multihulls differently -- deposit expectations, flag and "
+            "ownership structure, and whether the boat will charter move the final terms more "
+            "than the headline rate does. The article lays out the three structures Med buyers "
+            "actually use and what each costs in flexibility."
+        ),
+        "audience_value": (
+            "Finance conversations usually happen away from the broker, with an adviser who "
+            "does not know boats. Being the one who framed the structure keeps you in the room "
+            "where these deals are won or lost."
+        ),
+        "chips": ["how to finance a catamaran", "catamaran cost", "multihull financing"],
+    },
+]
+
+
+def _portal_context(conn):
+    """Pick a real seeded broker that has finished drafts, and return
+    (broker_row, chosen_angle_row, collected_files). The portal shows the
+    broker's own delivered pieces as "ready to collect" -- real data, driving
+    the copy/download interaction -- alongside the demo slate above.
+    """
+    labels = {"long": "Pillar article", "medium": "Medium post", "short": "Newsletter item"}
+    broker = conn.execute(
+        "SELECT b.* FROM broker b "
+        "JOIN angle a ON a.broker_id = b.id "
+        "JOIN draft d ON d.angle_id = a.id "
+        "GROUP BY b.id ORDER BY b.id LIMIT 1"
+    ).fetchone()
+    if broker is None:
+        return None, None, []
+    angle = conn.execute(
+        "SELECT * FROM angle WHERE broker_id=? ORDER BY id DESC LIMIT 1", (broker["id"],)
+    ).fetchone()
+    files = []
+    for fmt in ("long", "medium", "short"):
+        row = None
+        if angle is not None:
+            row = conn.execute(
+                "SELECT * FROM draft WHERE angle_id=? AND format=? ORDER BY id DESC LIMIT 1",
+                (angle["id"], fmt),
+            ).fetchone()
+        files.append({
+            "format": fmt, "label": labels[fmt],
+            "word_count": row["word_count"] if row else None,
+            "draft_id": row["id"] if row else None,
+            "available": row is not None,
+        })
+    return broker, angle, files
 
 
 def _flash(request: Request) -> dict:
@@ -186,6 +313,11 @@ def create_app(db_path: str) -> FastAPI:
     _TEMPLATES.env.filters["fromjson"] = lambda v: _loads(v, None)
     _TEMPLATES.env.filters["paragraphs"] = _paragraphs
     _TEMPLATES.env.globals["csrf_token"] = lambda: app.state.csrf_token
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(Path(__file__).parent / "static")),
+        name="static",
+    )
 
     @app.middleware("http")
     async def _guard(request: Request, call_next):
@@ -292,7 +424,7 @@ def create_app(db_path: str) -> FastAPI:
         )
 
     @app.post("/add/csv")
-    async def add_csv(file: UploadFile = File(...)):
+    async def add_csv(request: Request, file: UploadFile = File(...)):
         conn = db.connect(app.state.db_path)
         db.init_schema(conn)
         # Bounded read. `await file.read()` with no argument pulled the whole
@@ -301,12 +433,12 @@ def create_app(db_path: str) -> FastAPI:
         # it" without buffering the overage.
         raw = await file.read(MAX_UPLOAD_BYTES + 1)
         if len(raw) > MAX_UPLOAD_BYTES:
-            return _redirect(
-                "/add",
+            return _result(
+                request, conn, "/add",
                 f"That file is larger than {MAX_UPLOAD_BYTES // 1000} kB. A "
                 f"broker list for the {MAX_BROKERS}-broker cap is a few "
                 "kilobytes — check you picked the right file.",
-                ok=False,
+                False,
             )
         # utf-8-sig: Excel's "CSV UTF-8" writes a BOM (same handling as `bce
         # import`'s file read — see cli.cmd_import).
@@ -316,11 +448,11 @@ def create_app(db_path: str) -> FastAPI:
             rows, rejected = discover.parse_rows(text)
         except discover.CsvHeaderError as exc:
             found = ", ".join(exc.found) if exc.found else "(no header row)"
-            return _redirect(
-                "/add",
+            return _result(
+                request, conn, "/add",
                 f"That CSV's headers were not recognized — found: {found}. "
                 "Expected columns named 'name' and 'domain'.",
-                ok=False,
+                False,
             )
 
         existing = _broker_count(conn)
@@ -328,12 +460,12 @@ def create_app(db_path: str) -> FastAPI:
         # (spec §6): re-importing a growing master list must not double-count.
         incoming = discover.count_new_domains(conn, text)
         if existing + incoming > MAX_BROKERS:
-            return _redirect(
-                "/add",
+            return _result(
+                request, conn, "/add",
                 f"Refused: {existing} existing + {incoming} new would exceed "
                 f"the {MAX_BROKERS}-broker cap (spec section 6). Trim the CSV "
                 "and try again.",
-                ok=False,
+                False,
             )
 
         inserted = discover.import_csv(conn, text)
@@ -346,10 +478,10 @@ def create_app(db_path: str) -> FastAPI:
             details.append(f"{_plural(len(rejected), 'invalid domain')} skipped")
         if details:
             message += f" ({', '.join(details)})"
-        return _redirect("/", message, ok=True)
+        return _result(request, conn, "/", message, True)
 
     @app.post("/add/manual")
-    def add_manual(name: str = Form(""), domain: str = Form(""), region: str = Form("")):
+    def add_manual(request: Request, name: str = Form(""), domain: str = Form(""), region: str = Form("")):
         # Defaults, not Form(...): an empty-valued urlencoded field is not
         # reliably re-emitted by the form parser, which would otherwise turn a
         # blank field into a 422 before our own "name is required" /
@@ -359,14 +491,14 @@ def create_app(db_path: str) -> FastAPI:
 
         clean_name = name.strip()
         if not clean_name:
-            return _redirect("/add", "Name is required.", ok=False)
+            return _result(request, conn, "/add", "Name is required.", False)
         normalized = discover.normalize_domain(domain)
         if normalized is None:
-            return _redirect(
-                "/add",
+            return _result(
+                request, conn, "/add",
                 f"'{domain}' is not a hostname — expected something like "
                 "acme.com, not a URL or free text.",
-                ok=False,
+                False,
             )
 
         # Reuse the exact CSV pipeline (normalization, cap check, dedup,
@@ -380,19 +512,50 @@ def create_app(db_path: str) -> FastAPI:
         existing = _broker_count(conn)
         incoming = discover.count_new_domains(conn, csv_text)
         if existing + incoming > MAX_BROKERS:
-            return _redirect(
-                "/add",
+            return _result(
+                request, conn, "/add",
                 f"Refused: adding this broker would exceed the {MAX_BROKERS}"
                 f"-broker cap (spec section 6) — currently {existing}.",
-                ok=False,
+                False,
             )
 
         inserted = discover.import_csv(conn, csv_text)
         if inserted == 0:
-            return _redirect(
-                "/", f"'{normalized}' is already in the broker list — nothing added.",
-                ok=True,
+            return _result(
+                request, conn, "/",
+                f"'{normalized}' is already in the broker list — nothing added.",
+                True,
             )
-        return _redirect("/", f"Added {clean_name} ({normalized}).", ok=True)
+        return _result(request, conn, "/", f"Added {clean_name} ({normalized}).", True)
+
+    # ---- Broker portal (spec §9b): the external, broker-facing surface. ----
+    @app.get("/portal", response_class=HTMLResponse)
+    def portal(request: Request):
+        conn = db.connect(app.state.db_path)
+        db.init_schema(conn)
+        broker, chosen_angle, collected = _portal_context(conn)
+        return _TEMPLATES.TemplateResponse(
+            request=request, name="portal.html",
+            context={
+                "broker": broker,
+                "chosen_angle": chosen_angle,
+                "collected": collected,
+                "slate": _PORTAL_SLATE,
+            },
+        )
+
+    @app.get("/portal/download/{draft_id}")
+    def portal_download(draft_id: int):
+        conn = db.connect(app.state.db_path)
+        db.init_schema(conn)
+        row = conn.execute("SELECT * FROM draft WHERE id=?", (draft_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="draft not found")
+        body = row["body_md"] or ""
+        filename = f"{row['format']}-draft.txt"
+        return Response(
+            content=body, media_type="text/plain; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     return app
