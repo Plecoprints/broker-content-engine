@@ -1,3 +1,8 @@
+# Source: Semrush, US database, measured 2026-09-01.
+# Licence basis: Semrush ToS s3.2 -- use "solely for your own internal business
+# purposes". NOT FOR REDISTRIBUTION. Do not publish these rows or attach them
+# to anything shared outside Sunreef. ToS s3.3(r) forbids Semrush outputs as
+# LLM inputs: keyword phrases may enter prompts, figures may not.
 keyword,monthly_volume,difficulty,excluded_because
 catamaran club,1000,20,off segment: other_brand
 small catamaran,880,26,off segment: wrong_size_class

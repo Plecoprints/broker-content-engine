@@ -628,13 +628,45 @@ remediated in code (SSRF, operator-panel authentication, CSRF, upload ceiling, t
 prompt-injection fencing). The items below are **decisions rather than defects** — recorded here so
 they are deliberate and reviewable, not gaps someone later mistakes for oversights.
 
-**Repository visibility — decided.** The repository is private by default. It was made public
-temporarily so the IT reviewer could read it, and returns to private once the build is complete. One
-consequence worth stating rather than discovering: public exposure is not perfectly reversible. GitHub
-forks, clones and third-party caches taken during the window survive the repository going private
-again. Nothing found in the repository is a credential, and the strategy material it contains is
-commercially sensitive rather than dangerous, so the practical residual risk is low — but it is not
-zero, and "we made it private again" is not the same as "it was never public".
+**Repository visibility — decided, and the window is still open.** The repository is private by
+default; it was made public so the IT reviewer could read it, and returns to private once the build is
+complete. **As of this writing it is still public**, which the licence review below makes a compliance
+matter as well as a security one.
+
+Measured rather than assumed: 0 forks, 0 stars, 0 watchers and 0 clones across GitHub's 14-day traffic
+window. That is what makes a git-history rewrite the wrong remedy — with no fork network preserving
+commits, the content goes private when the repository does. What the traffic API does not count is
+web-UI browsing, `raw.githubusercontent.com` fetches, or the public events firehose, which archives
+repository names, SHAs and **commit messages** though not file contents. So the honest read is "very
+low, and not worth a history rewrite", not "provably zero" — and "we made it private again" is still
+not the same as "it was never public".
+
+**Semrush data — reviewed 2026-09-02. The IT finding's word "redistribution" does not fit the private
+case.** ToS §3.2 grants use "solely for your own internal business purposes", which is what choosing
+article topics is; §3.3(a) bars making the Services available to a *third party*, and a private company
+repository contains none. No general storage or retention limit exists — the one-month cache cap in
+§3.3 is expressly conditional on *"If you subscribe to the Semrush API"*. **Open, and dated:** if this
+export came from the API rather than the web UI, that cap bites around 2026-10-01 for a file measured
+2026-09-01, and the remedy is the written permission the clause itself invites. Establish which it was.
+
+The public window is a probable technical breach of §3.3(m) while it lasts, cured by going private,
+with a 30-day cure right under §7 and no liquidated damages. Two structural notes for anyone
+revisiting this: Sunreef is Polish, so §11.4 makes this an **Irish-law** contract rather than a US one,
+and the EU **sui generis database right** (Directive 96/9/EC; Polish Act of 27 July 2001) applies
+independently of contract and is not displaced by that clause. Both point to the same remedy, so
+neither changes what to do.
+
+**Acted on.** `CPC (USD)` and `SERP Features` were stripped from the raw export: they are Semrush's own
+commercial analysis, the highest-sensitivity fields in any export, and **no code here has ever read
+them** — pure exposure for zero utility. Every tracked Semrush file now carries a provenance and
+licence-basis header, and `tests/test_repo_hygiene.py` asserts both the absent columns and the present
+header, because `load_bank` silently drops unmapped columns and a re-added CPC column would otherwise
+be noticed by nobody.
+
+**The forward risk is §3.3(r)**, which forbids Semrush outputs as inputs to a language model. The code
+is compliant today by design — only `phrase` reaches a prompt, never a figure — but
+`angles.AngleClient.keyword_source` is an unwired seam that would fold live Semrush results into one.
+The rule is written at that seam and asserted by a test: phrases may enter prompts, figures may not.
 
 **Transfer of broker content to Anthropic and Voyage — accepted, no separate legal review.** The
 assessment recommended a legal/privacy review before broker article text is sent to external AI

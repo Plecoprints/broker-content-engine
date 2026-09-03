@@ -1,3 +1,8 @@
+# Source: Semrush, US database, measured 2026-09-01.
+# Licence basis: Semrush ToS s3.2 -- use "solely for your own internal business
+# purposes". NOT FOR REDISTRIBUTION. Do not publish these rows or attach them
+# to anything shared outside Sunreef. ToS s3.3(r) forbids Semrush outputs as
+# LLM inputs: keyword phrases may enter prompts, figures may not.
 keyword,monthly_volume,difficulty,intent,database,measured_at
 what is a catamaran,1900,25,informational,us,2026-09-01
 power catamaran,1600,28,"commercial, informational",us,2026-09-01
