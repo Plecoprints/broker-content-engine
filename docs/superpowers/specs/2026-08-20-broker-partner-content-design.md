@@ -621,6 +621,59 @@ Requirements, not preferences:
 5. **Honest attribution in outreach.** Messages state plainly that Sunreef prepared the draft.
 6. **Relationship-agnostic copy.** Because affinity detection is incomplete (§4), no outreach may assume the recipient is a stranger to Sunreef.
 
+### 10.8 Decisions on the IT risk assessment (2026-09-02)
+
+Sunreef IT produced a preliminary risk assessment of this project. Its technical findings were
+remediated in code (SSRF, operator-panel authentication, CSRF, upload ceiling, throttling,
+prompt-injection fencing). The items below are **decisions rather than defects** — recorded here so
+they are deliberate and reviewable, not gaps someone later mistakes for oversights.
+
+**Repository visibility — decided.** The repository is private by default. It was made public
+temporarily so the IT reviewer could read it, and returns to private once the build is complete. One
+consequence worth stating rather than discovering: public exposure is not perfectly reversible. GitHub
+forks, clones and third-party caches taken during the window survive the repository going private
+again. Nothing found in the repository is a credential, and the strategy material it contains is
+commercially sensitive rather than dangerous, so the practical residual risk is low — but it is not
+zero, and "we made it private again" is not the same as "it was never public".
+
+**Transfer of broker content to Anthropic and Voyage — accepted, no separate legal review.** The
+assessment recommended a legal/privacy review before broker article text is sent to external AI
+providers. Luis's decision is to proceed without one. The facts that make that defensible, and which
+should be given alongside the decision rather than left implied: the material is **public web
+content**, retrieved from pages any reader can open, never login-gated or paywalled (§10.2). Voice
+profiles store **derived features and short illustrative quotes, never full article text** (§5 Stage
+3). §10.3's originality corpus stores **shingle hashes, not prose** — there is no recoverable text in
+the database at all. So what leaves Sunreef is a bounded excerpt of already-public writing, sent for
+style analysis. This is not a decision to send confidential third-party material anywhere, and stating
+it that way is more accurate than the assessment's framing.
+
+**Identifying the crawler as Sunreef before a partnership exists — resolved, and the concern does not
+apply.** The assessment suggested `SunreefPartnerContentBot` should perhaps not name Sunreef to a
+broker who has not yet agreed to work with us. **There is no such state.** Sunreef holds no ongoing
+agreements with brokers. A broker signs a single-deal sales agreement only when they bring an active
+referral, so "before a partnership exists" describes every broker, permanently — including the ones
+already selling boats for us. The whole purpose of this programme is to help brokers manufacture
+opportunities that lead to exactly those single-deal agreements. An identifying User-Agent is
+therefore correct, and remains what §10.2 requires: a bot that named itself something opaque while
+crawling on Sunreef's behalf would be the worse choice, both ethically and reputationally.
+
+**Broker consent before voice profiling — decided: not sought.** Profiling is automation in service of
+the broker, not surveillance of them: its only purpose is that when a broker opens the portal, the
+content waiting for them already matches their brand, voice and tone rather than reading like generic
+manufacturer copy. Asking permission to read pages that are already public, in order to write
+something better for the person who published them, inverts the relationship the programme is trying
+to build.
+
+One factual note attaches to this decision, recorded so the answer exists if it is ever asked for. A
+brokerage is a business, and business data is not personal data. But a broker's articles may carry a
+named author, and analysing an identified person's writing style can touch personal data under GDPR.
+The design already limits that exposure structurally rather than by policy: only public pages, derived
+features and short quotes rather than stored prose, hashes rather than text in the originality corpus,
+and no special-category data of any kind. Combined with §10.1's disclosure work and §10.5's honest
+attribution, the position is a defensible legitimate-interest one. If a broker ever objects, the
+answer is to delete their profile and stop — which the data model supports today, since everything
+about a broker hangs off one row.
+
 ### 10.9 The gate ensemble, and what replaced the human approval
 
 **A §10 edit is not finished until the circulated material matches it.** This section's first

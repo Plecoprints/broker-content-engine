@@ -68,6 +68,17 @@ bce draft        # spends real API budget; capped at 7 brokers per run
   only once the gates have been seen working — removing a control before it has ever been
   measured is not the same as trusting it.
 
+- **The IT risk assessment is answered: six technical findings fixed, four items decided**
+  (§10.8). Fixed in code — SSRF with two layers and per-redirect-hop validation, operator-panel
+  authentication (a non-loopback bind is now *refused* without a password), CSRF, a 1 MB upload
+  ceiling, write-path throttling, and prompt-injection fencing for scraped text. Decided, not
+  defects — the repo is private by default and was public only for the review; transfer of
+  public broker prose to Anthropic/Voyage is accepted without separate legal review; the
+  identifying User-Agent stays, because Sunreef holds no ongoing broker agreements so "before a
+  partnership" describes every broker permanently; and broker consent for profiling is not
+  sought, since it exists to make portal content match their own voice. **Still open:** Semrush
+  redistribution rights, under legal research.
+
 - **There is no click attribution, by design, and that has a reporting consequence.** §1
   closed the backlink question — links are welcome if a broker offers one, but are not a goal
   and not designed for — because Sunreef supplies copy for a partner to paste into their own
