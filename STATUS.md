@@ -76,8 +76,16 @@ bce draft        # spends real API budget; capped at 7 brokers per run
   public broker prose to Anthropic/Voyage is accepted without separate legal review; the
   identifying User-Agent stays, because Sunreef holds no ongoing broker agreements so "before a
   partnership" describes every broker permanently; and broker consent for profiling is not
-  sought, since it exists to make portal content match their own voice. **Still open:** Semrush
-  redistribution rights, under legal research.
+  sought, since it exists to make portal content match their own voice.
+
+- **Semrush data is cleared for private internal use** (§10.8). ToS §3.2 covers it; the finding's
+  word "redistribution" does not fit a private repository. `CPC (USD)` and `SERP Features` were
+  stripped from the raw export — Semrush's own commercial analysis, never read by any code here —
+  and every tracked Semrush file states its provenance and licence basis, asserted by tests. The
+  export came from the web UI, so §3.3's one-month cache cap does not apply and there is no
+  retention deadline. **The standing rule is §3.3(r): keyword phrases may enter a prompt, Semrush
+  figures may never.** Compliant today; the rule is written at `angles.AngleClient.keyword_source`
+  because that unwired seam is where it would break.
 
 - **There is no click attribution, by design, and that has a reporting consequence.** §1
   closed the backlink question — links are welcome if a broker offers one, but are not a goal

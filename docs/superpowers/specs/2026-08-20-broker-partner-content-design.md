@@ -645,9 +645,12 @@ not the same as "it was never public".
 case.** ToS §3.2 grants use "solely for your own internal business purposes", which is what choosing
 article topics is; §3.3(a) bars making the Services available to a *third party*, and a private company
 repository contains none. No general storage or retention limit exists — the one-month cache cap in
-§3.3 is expressly conditional on *"If you subscribe to the Semrush API"*. **Open, and dated:** if this
-export came from the API rather than the web UI, that cap bites around 2026-10-01 for a file measured
-2026-09-01, and the remedy is the written permission the clause itself invites. Establish which it was.
+§3.3 is expressly conditional on *"If you subscribe to the Semrush API"*. **Resolved 2026-09-02: the export came from the
+web UI, not the API**, so the cap does not attach. There is no retention deadline on this data, nothing
+to ask Semrush for, and no recurring exposure — the file can stay as long as it is useful. Had it been
+an API export, the cap would have bitten around 2026-10-01 for a file measured 2026-09-01 and turned a
+one-off into a standing breach; worth knowing if anyone ever wires up a live API pull, because that
+export would carry the cap.
 
 The public window is a probable technical breach of §3.3(m) while it lasts, cured by going private,
 with a 30-day cure right under §7 and no liquidated damages. Two structural notes for anyone
