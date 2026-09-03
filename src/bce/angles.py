@@ -12,6 +12,7 @@ import json
 
 import anthropic
 
+from bce import untrusted
 from bce.draft import COMPETITORS
 
 MODEL = "claude-opus-5"
@@ -175,6 +176,15 @@ class AngleClient:
         #: live Semrush response shape has not been verified — building
         #: against an unverified shape is how a real defect shipped earlier
         #: in this project (spec §3 follow-up).
+        #:
+        #: **When this is wired: phrases may enter the prompt, figures may
+        #: not.** Semrush ToS s3.3(r) forbids their outputs -- "insights,
+        #: analyses, suggestions, graphs and other outputs" -- as inputs to a
+        #: language model. A search phrase is a string people type into
+        #: Google and is not their creation; volume, difficulty, CPC and SERP
+        #: analysis are. `draft._keyword_guidance` already interpolates only
+        #: `phrase`, and `tests/test_repo_hygiene.py` asserts that no metric
+        #: reaches a prompt from any module. Keep it that way here.
         self.keyword_source = keyword_source
 
     @property
@@ -191,7 +201,7 @@ class AngleClient:
             response = self.client.messages.create(
                 model=MODEL,
                 max_tokens=MAX_TOKENS,
-                system=_SYSTEM,
+                system=_SYSTEM + untrusted.INSTRUCTION,
                 output_config={"format": ANGLE_SCHEMA, "effort": "medium"},
                 messages=[
                     {

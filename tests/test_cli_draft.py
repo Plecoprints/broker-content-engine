@@ -24,6 +24,33 @@ def _profile(conn, bid, register="warm professional"):
         (bid, register, json.dumps({}), json.dumps([]), json.dumps([]), json.dumps([])),
     )
     conn.commit()
+    _persist_fixture_fingerprints(conn, bid)
+
+#: Every profiled broker has source fingerprints in production:
+#: `profile.profile_broker` refuses to write a profile below
+#: MIN_CORPUS_CHARS and persists fingerprints unconditionally once a corpus
+#: exists. A fixture that writes a voice_profile without them builds a state
+#: production cannot reach, and since `check_original` fails closed on
+#: missing fingerprints (§10.9) it would fail the Original gate for a reason
+#: unrelated to the test. Text shares no 6-word shingle with any draft body
+#: here, so containment is ~0.
+_FIXTURE_SOURCE_TEXT = (
+    "Antique cartography of the Baltic littoral remains poorly catalogued "
+    "in municipal archives despite repeated funding appeals. "
+) * 4
+
+
+def _persist_fixture_fingerprints(conn, broker_id):
+    from bce.fingerprint import shingle_hashes
+
+    for h in shingle_hashes(_FIXTURE_SOURCE_TEXT):
+        conn.execute(
+            "INSERT OR IGNORE INTO source_fingerprint (broker_id, shingle_hash) "
+            "VALUES (?, ?)",
+            (broker_id, h),
+        )
+    conn.commit()
+
 
 
 def _drafted(conn, bid):
@@ -340,14 +367,21 @@ class _FakeAngleClient:
 
 
 class _FakeDraftClient:
+    """Bodies are deliberately over SHINGLE_SIZE (6) words. Two-word stand-ins
+    produce no shingles at all, and since 2026-09-02 the Original gate fails
+    closed when it cannot compare (§10.9) -- so a too-short fixture would be
+    rejected for its length rather than exercising what this test is about.
+    No real format is that short; §5's shortest is 100-200 words.
+    """
+
     def write_long(self, angle, profile, broker_name, keywords=None):
-        return "Long body."
+        return "Long body with enough words in it to shingle properly."
 
     def write_medium(self, long_body, profile, broker_name, keywords=None):
-        return "Medium body."
+        return "Medium body with enough words in it to shingle properly."
 
     def write_short(self, long_body, profile, keywords=None):
-        return "Short body."
+        return "Short body with enough words in it to shingle properly."
 
 
 class _FakeEmbeddingClient:

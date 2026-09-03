@@ -5,3 +5,34 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .superpowers/
+
+# ---------------------------------------------------------------------------
+# Operator inputs. The remote is currently PUBLIC, and these are the files
+# that would matter if they reached it. Listed before they exist on purpose --
+# `git add -A` is the realistic failure mode, and removing a file from history
+# afterwards is far more work than one line here.
+# ---------------------------------------------------------------------------
+
+# The broker shortlist (spec §4): a list of named brokerage firms Sunreef is
+# targeting. Commercially sensitive in a way the keyword banks are not, and
+# `bce import <brokers.csv>` makes it the first real file the pilot produces.
+brokers*.csv
+data/brokers*.csv
+
+# API keys. Nothing in `src/` loads a .env today -- `anthropic.Anthropic()` and
+# `voyageai.Client()` read the environment directly -- but a .env is what
+# someone reaches for anyway, and it must never be the file that ships a key.
+.env
+.env.*
+
+# Marketing assets read from the Dept_Marketing share (spec §7 AssetProvider).
+# They are licensed material staged for brokers, not repository content, and
+# §10.7 rights are tracked per asset in the database, not by a file's presence
+# in git.
+data/assets/
+
+# Anything explicitly marked private -- the §10.7 rights confirmation from the
+# creative team, legal correspondence under §10.1, and their kind.
+data/private/
+docs/private/
+*-private.*

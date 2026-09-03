@@ -145,7 +145,8 @@ def _insert_gated_draft(
         "INSERT INTO draft (angle_id, body_md, word_count, status, format, "
         "passes_uniqueness, max_similarity, most_similar_draft_id, embedding, "
         "passes_tailored, tailored_score, passes_originality, "
-        "originality_overlap) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "originality_overlap, passes_no_product_claims, product_claims_found) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             angle_id,
             body,
@@ -160,6 +161,12 @@ def _insert_gated_draft(
             gates.tailored_score,
             int(gates.passes_originality),
             gates.originality_overlap,
+            int(gates.passes_no_product_claims),
+            # Stored as JSON rather than a count: §10.4's whole difficulty is
+            # that nobody can verify a claim after the fact, so the offending
+            # text has to survive to the draft row where a reviewer -- or a
+            # redraft -- can see exactly what tripped the gate.
+            json.dumps(list(gates.product_claims)) if gates.product_claims else None,
         ),
     )
     draft_id = cursor.lastrowid

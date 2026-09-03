@@ -1,9 +1,10 @@
 """CLI entry point. Enforces the spec §6 volume cap."""
 import argparse
+import os
 import sys
 from pathlib import Path
 
-from bce import db, discover, drafting, keywords, profile, qualify, seed
+from bce import db, discover, drafting, keywords, netguard, profile, qualify, seed
 from bce.angles import AngleClient
 from bce.draft import DraftClient
 from bce.embeddings import EmbeddingClient
@@ -152,9 +153,30 @@ def cmd_qualify(db_path: str, limit: int = DEFAULT_QUALIFY_LIMIT) -> int:
     db.init_schema(conn)
     fetcher = Fetcher()
     rows = discover.unqualified_brokers(conn, limit)
+    suspect = 0
     for row in rows:
         verdict = qualify.qualify_broker(conn, row["id"], fetcher)
-        print(f"{row['domain']}: {verdict['reason']}")
+        line = f"{row['domain']}: {verdict['reason']}"
+        if verdict.get("render_suspect"):
+            suspect += 1
+            line += (
+                f"  [!] only {verdict['visible_text_chars']} chars of visible text"
+                " -- likely client-side rendered, so this verdict is about what we"
+                " could read, not about the broker. Check by hand."
+            )
+        print(line)
+    if suspect:
+        # Loud, and separate from the per-row note: a run where several
+        # brokers were unreadable is a run whose shortlist is wrong, and the
+        # operator has to know that before acting on it (spec §7 lists
+        # Playwright for exactly these sites; it is not built).
+        print(
+            f"\n{suspect} of {len(rows)} pages returned almost no visible text."
+            " Their verdicts are unreliable -- open each one in a browser before"
+            " accepting a rejection. If many broker sites are client-side"
+            " rendered, rendered fetching (spec §7's Playwright) is the fix, and"
+            " it is not built."
+        )
     return 0
 
 
@@ -350,9 +372,39 @@ def cmd_seed_example(db_path: str) -> int:
     return 0
 
 
+def is_loopback_host(host: str) -> bool:
+    """Whether binding here keeps the panel off the network."""
+    if (host or "").strip().lower() in ("localhost", ""):
+        return True
+    address = netguard.literal_address(host)
+    return address is not None and address.is_loopback
+
+
 def cmd_serve(db_path: str, host: str = "127.0.0.1", port: int = 8000) -> int:
+    """Serve the operator UI (spec §9).
+
+    Refuses a non-loopback bind unless an operator password is set. §9's
+    "localhost only, no auth" was a comment, so `--host 0.0.0.0` would have
+    published the draft queue, the broker list and two POST endpoints to the
+    network with no login -- finding 2 of the 2026-09-02 risk assessment. The
+    refusal is the enforcement: the assumption is now checked at the one place
+    it can be violated.
+    """
     import uvicorn
-    from bce.web.app import create_app
+    from bce.web.app import PASSWORD_ENV, create_app
+
+    if not is_loopback_host(host) and not os.environ.get(PASSWORD_ENV):
+        print(
+            f"refused: --host {host} would expose the operator panel beyond this "
+            f"machine with no authentication.\n"
+            f"  Either bind to 127.0.0.1 (the default), or set {PASSWORD_ENV} to "
+            f"require a password.\n"
+            f"  Even with a password, put it behind a firewall or VPN rather than "
+            f"on an open interface."
+        )
+        return 1
+    if os.environ.get(PASSWORD_ENV):
+        print(f"authentication: enabled ({PASSWORD_ENV} is set)")
     print(f"http://{host}:{port}")
     uvicorn.run(create_app(db_path), host=host, port=port, log_level="warning")
     return 0

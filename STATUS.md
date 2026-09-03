@@ -16,7 +16,7 @@ for the binding design. This file is only the current state and the immediate ne
 | Voice profiling | Done |
 | Keyword bank, five selection gates | Done — operator's approved/excluded banks are the authority (§5b) |
 | Angle proposal and three-format drafting | Done |
-| Three originality gates (§10.3) | Done |
+| Originality gates (§10.3) + no-product-claims (§10.4) | Done — four of §10.9's six gates; the two judges are specified, not built |
 | Operator UI (`bce serve`) | Done — shortlist, add brokers, draft viewer with keyword and gate panels |
 
 ## Never yet run against a real broker
@@ -57,6 +57,46 @@ bce draft        # spends real API budget; capped at 7 brokers per run
 
 ## Decisions that would otherwise surprise you
 
+- **Stage 5 is no longer a blocking human approval** (§10.9, revised 2026-09-02). A draft ships
+  when it clears a six-gate ensemble; the broker, who publishes or does not, is the human
+  judgment on editorial fit; the operator reads a *sample* to catch gate drift. Three gates
+  **Four are built** — unique, tailored, original, and the mechanical
+  no-Sunreef-product-claims gate (`bce.claims`; §10.4 was rewritten to refuse claims rather
+  than verify them, since verifying needs a source of truth that does not exist). The two
+  judges, editorial-value and brand-quality, are specified but **not built**. Every gate fails closed, and the judges must not run on the model
+  that wrote the draft. **Sampling starts at 100% for the first pilot run** and steps down
+  only once the gates have been seen working — removing a control before it has ever been
+  measured is not the same as trusting it.
+
+- **The IT risk assessment is answered: six technical findings fixed, four items decided**
+  (§10.8). Fixed in code — SSRF with two layers and per-redirect-hop validation, operator-panel
+  authentication (a non-loopback bind is now *refused* without a password), CSRF, a 1 MB upload
+  ceiling, write-path throttling, and prompt-injection fencing for scraped text. Decided, not
+  defects — the repo is private by default and was public only for the review; transfer of
+  public broker prose to Anthropic/Voyage is accepted without separate legal review; the
+  identifying User-Agent stays, because Sunreef holds no ongoing broker agreements so "before a
+  partnership" describes every broker permanently; and broker consent for profiling is not
+  sought, since it exists to make portal content match their own voice.
+
+- **Semrush data is cleared for private internal use** (§10.8). ToS §3.2 covers it; the finding's
+  word "redistribution" does not fit a private repository. `CPC (USD)` and `SERP Features` were
+  stripped from the raw export — Semrush's own commercial analysis, never read by any code here —
+  and every tracked Semrush file states its provenance and licence basis, asserted by tests. The
+  export came from the web UI, so §3.3's one-month cache cap does not apply and there is no
+  retention deadline. **The standing rule is §3.3(r): keyword phrases may enter a prompt, Semrush
+  figures may never.** Compliant today; the rule is written at `angles.AngleClient.keyword_source`
+  because that unwired seam is where it would break.
+
+- **There is no click attribution, by design, and that has a reporting consequence.** §1
+  closed the backlink question — links are welcome if a broker offers one, but are not a goal
+  and not designed for — because Sunreef supplies copy for a partner to paste into their own
+  channels and never controls the published URL. Stage 7 and §11.6 were rewritten 2026-09-02
+  to match: success is **3 brokers publishing a delivered piece within 90 days, detected by
+  fingerprint match, and 2 of them returning for a second angle**. Never promise a
+  referral-ROI figure for this channel — it cannot be produced. `outcome`'s `utm_campaign`,
+  `referral_sessions` and `inquiries` columns are never populated; they are kept only in case
+  that decision is reopened.
+
 - **Long drafts are not blocked on voice match.** Voice matching is binding for medium and
   short, advisory for the 2,000–2,300 word pillar. No broker's typical article length is
   near 2,000 words, so a blocking check would fail every pillar.
@@ -83,9 +123,26 @@ bce draft        # spends real API budget; capped at 7 brokers per run
 
 In order, all after the pilot:
 
-1. **Broker-facing portal** (§9b) — partner logins, row-level security. A strong idea
-   surfaced late: let brokers pick from proposed angles rather than receiving finished
-   articles unprompted. A partner who chose the topic is far likelier to publish it.
+1. **Broker-facing portal** (§9b) — partner logins, row-level security. **What the broker
+   initiates is now settled (§9b, resolved 2026-09-02): angle *selection*, never
+   generation.** Weekly: the engine proposes each broker's slate of 3–5 angles, the
+   operator approves it, and **a human messages the broker** that new angles are waiting
+   (Stage 6 — the system does not send email). The broker picks one; that pick generates
+   all three formats, which run the §10.3 gates and land in the Stage 5 review queue, not
+   in the broker's hands. The slate is fixed for the week — no reroll. Because a person is
+   already in the loop each cycle to send the reminder, approving the slate first costs
+   nothing, so no model output ever reaches a broker unreviewed. There is no "generate"
+   button: there is an approved slate and a nudge to come look at it. A
+   Generate button would have bypassed Stage 5 — which §5 says cannot be bypassed — and
+   put unreviewed model output in front of an external partner, the §12 Critical risk.
+   It is also the better system: choosing the angle is the ownership that makes a partner
+   likely to publish. Note the portal shows `title`, `premise` and `audience_value` only —
+   `sunreef_relevance` and `score` are internal reasoning and must not reach a broker.
+   **Open:** review granularity — one pick yields three drafts, and §5 calls short "a
+   condensation of the long form, not a separate piece", so does Stage 5 approve the
+   package or each format? Budget is now quantified: ~$0.15 per broker per cycle, under
+   $10 for a full 50-broker week, which is what §11.5's missing ceiling should be set
+   against. Queue, workers, schema and hosting are still undesigned.
 2. **Marketing asset library** (§11.3) — images to pair with drafts. Blocked less on code
    than on §10.7 usage rights: marketing-approved-for-Sunreef is not the same as
    licensed-for-a-broker-to-republish.

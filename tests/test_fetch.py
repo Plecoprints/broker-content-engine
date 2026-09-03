@@ -21,7 +21,11 @@ def test_default_client_carries_the_identifying_user_agent():
     """
     f = Fetcher()
     assert f._client.headers["user-agent"] == USER_AGENT
-    assert f._client.follow_redirects is True
+    # False since 2026-09-02: redirects are followed by hand so each hop can be
+    # address-validated (`bce.netguard`). Handing the loop to httpx meant a
+    # public hostname could redirect to an internal one unchecked -- the
+    # compounding half of the SSRF finding.
+    assert f._client.follow_redirects is False
     f._client.close()
 
 
@@ -125,7 +129,10 @@ def test_get_returns_none_if_redirect_target_disallowed():
         # The disallowed path: serve content if reached
         return httpx.Response(200, text="target content")
 
-    # Must use follow_redirects=True to exercise the redirect fix
+    # Deliberately injects a redirect-following client. `Fetcher` forces
+    # follow_redirects=False on whatever it is handed, precisely so a caller
+    # cannot switch the address validation off by accident -- these two tests
+    # are what proved that trusting the caller was not enough.
     f = Fetcher(
         min_delay=0,
         client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),
@@ -143,7 +150,10 @@ def test_get_returns_body_if_redirect_target_allowed():
         # The allowed path: serve content if reached
         return httpx.Response(200, text="target content from /public/target")
 
-    # Must use follow_redirects=True to exercise the redirect fix
+    # Deliberately injects a redirect-following client. `Fetcher` forces
+    # follow_redirects=False on whatever it is handed, precisely so a caller
+    # cannot switch the address validation off by accident -- these two tests
+    # are what proved that trusting the caller was not enough.
     f = Fetcher(
         min_delay=0,
         client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),

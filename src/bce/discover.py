@@ -4,6 +4,8 @@ import io
 import re
 import sqlite3
 
+from bce import netguard
+
 _AFFINITY_RANK = {
     "lists_inventory": 0,
     "mentions": 1,
@@ -56,6 +58,18 @@ def normalize_domain(cell: str) -> str | None:
     value = value.strip().rstrip(".")
     if value.startswith("www."):
         value = value[4:]
+    # A literal IP is refused here, public ones included (SSRF layer 1 --
+    # `bce.netguard`, and the 2026-09-02 risk assessment). `10.0.0.5` and
+    # `169.254.169.254` both satisfy `_HOSTNAME_RE`, so shape alone let the
+    # loopback, private and cloud-metadata ranges straight into the fetch
+    # queue. A brokerage's domain column is never an address; refusing the
+    # whole class avoids arguing about which addresses are acceptable.
+    # This is not the control -- a hostname can resolve anywhere, which is
+    # what `netguard.assert_fetchable` checks at request time -- but it stops
+    # the obvious case at the earliest point, with a reason the operator reads
+    # in the import report.
+    if netguard.literal_address(value) is not None:
+        return None
     return value if _HOSTNAME_RE.match(value) else None
 
 

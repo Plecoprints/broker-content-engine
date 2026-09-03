@@ -37,7 +37,7 @@ words on sunreef-yachts.com.
 2. **Listen** — read their published writing; learn register, sentence rhythm, typical length, structure, vocabulary, themes.
 3. **Target** — select topics their buyers search for *and* their site can realistically rank for.
 4. **Write** — three publication-ready pieces in their voice, featuring Sunreef naturally.
-5. **Approve** — automated checks first, then a Sunreef marketer signs off every piece. Nothing is sent automatically.
+5. **Check** — eight automated gates, including one that refuses any specific claim about a named Sunreef vessel. A Sunreef marketer reads the output — all of it through the first pilot — and a human sends every piece. Nothing is sent automatically.
 
 ## What each partner receives — three formats
 
@@ -133,11 +133,18 @@ where partners log in and collect their content, is committed and not yet built.
 2. The five-stage process as a connected horizontal flow
 3. Hero diagram: one Sunreef story → three formats → fanning out to many partner sites → each reaching its own audience
 4. The open-vs-closed search comparison as paired bars (identical volume, opposite outcome)
-5. Four value figures: 34,920 / 3 formats / 1,460 / 7 checks
+5. Four value figures: 34,920 / 3 formats / 1,460 / 8 checks
 6. Closing strategic shift line
 
 ## Things to avoid
 
 Do not lead with the technology — lead with the underused partner network. Do not mention
-costs; they are not the argument. Do not imply content publishes automatically; a human
-approves everything, and that matters to anyone worried about brand risk.
+costs; they are not the argument. Do not imply content publishes automatically; a human sends
+every piece, and that matters to anyone worried about brand risk.
+
+Be precise about the control model, because an earlier version of this brief was not. There is
+no per-piece sign-off: a draft is cleared by eight automated gates — one of which refuses any
+specific claim about a named Sunreef vessel, so a fabricated figure cannot reach a broker — and a
+marketer reads the output rather than approving each item, at 100% of it through the first pilot.
+Two further judge gates are designed and not built. Say that. It is a stronger story than a
+sign-off promise, and unlike a sign-off promise it is true.

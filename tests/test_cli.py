@@ -305,3 +305,84 @@ def test_unqualified_brokers_filters_correctly(tmp_path):
     rows = discover.unqualified_brokers(conn, limit=10)
     assert len(rows) == 2
     assert all(r["domain"] in ("b.com", "c.com") for r in rows)
+
+
+# =============================================================================
+# `qualify` must not let a rendering failure read as a fact about the broker
+# =============================================================================
+
+class _ShellFetcher:
+    """A client-rendered site: 200 OK, and an empty app shell."""
+
+    def robots_allows(self, url):
+        return True
+
+    def get(self, url):
+        return "<html><body><div id=\"root\"></div></body></html>"
+
+
+class _RichFetcher:
+    """A server-rendered brokerage page with real content."""
+
+    def robots_allows(self, url):
+        return True
+
+    def get(self, url):
+        return (
+            "<html><body><p>"
+            + ("We broker sailing catamarans from 60 ft to 90 ft. " * 40)
+            + "</p></body></html>"
+        )
+
+
+def _one_broker(tmp_path, domain="spa.invalid"):
+    from bce import db, discover
+
+    path = str(tmp_path / "q.db")
+    conn = db.connect(path)
+    db.init_schema(conn)
+    discover.import_csv(conn, f"name,domain\nT,{domain}\n")
+    conn.commit()
+    bid = conn.execute("SELECT id FROM broker WHERE domain=?", (domain,)).fetchone()["id"]
+    conn.close()
+    return path, bid
+
+
+def test_an_unreadable_page_is_flagged_not_taken_at_face_value(tmp_path, capsys):
+    """A client-rendered site yields no visible text, so every detector reads an
+    empty page and the broker is recorded `below_length_threshold` -- which
+    reads as "too small for us" when the truth is "we could not see the page".
+    Spec §7 lists Playwright for these sites and it is not built, so the only
+    honest handling is to say so loudly.
+    """
+    from bce import db, qualify
+
+    path, bid = _one_broker(tmp_path)
+    conn = db.connect(path)
+    verdict = qualify.qualify_broker(conn, bid, _ShellFetcher())
+
+    assert verdict["qualified"] is False
+    assert verdict["render_suspect"] is True
+    assert verdict["visible_text_chars"] < qualify.RENDER_SUSPICION_CHARS
+
+
+def test_a_readable_page_is_never_flagged_as_a_rendering_problem(tmp_path):
+    from bce import db, qualify
+
+    path, bid = _one_broker(tmp_path, domain="rich.invalid")
+    conn = db.connect(path)
+    verdict = qualify.qualify_broker(conn, bid, _RichFetcher())
+    assert verdict["render_suspect"] is False
+    assert verdict["visible_text_chars"] > qualify.RENDER_SUSPICION_CHARS
+
+
+def test_a_qualified_broker_is_never_render_suspect(tmp_path):
+    """`render_suspect` exists to explain a rejection. A pass needs no excuse,
+    so the flag must never ride along on one."""
+    from bce import db, qualify
+
+    path, bid = _one_broker(tmp_path, domain="ok.invalid")
+    conn = db.connect(path)
+    verdict = qualify.qualify_broker(conn, bid, _RichFetcher())
+    if verdict["qualified"]:
+        assert verdict["render_suspect"] is False
