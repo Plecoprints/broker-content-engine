@@ -2,39 +2,54 @@
 {% block title %}Add brokers — Broker Content Engine{% endblock %}
 {% block content %}
   {% if message %}
-    <div class="flash {{ 'flash-ok' if ok else 'flash-error' }}">{{ message }}</div>
+    <div class="flash {{ 'flash-ok' if ok else 'flash-error' }}" data-testid="flash-message">{{ message }}</div>
   {% endif %}
 
-  <p class="muted">{{ existing }} of {{ max_brokers }} brokers currently in the list.</p>
+  <a class="backlink" href="/" data-testid="back-to-shortlist">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+    Back to shortlist
+  </a>
 
-  <section class="panel">
+  <section class="section-head rise">
+    <p class="eyebrow">Stage 1 · Import a partner list</p>
+    <h1>Add <em class="gilt">brokers</em></h1>
+    <p class="lede">{{ existing }} of {{ max_brokers }} brokers currently in the list. Import a shortlist as a
+    CSV, or add a single partner by hand.</p>
+  </section>
+
+  <section class="panel panel--form rise" data-testid="csv-upload-panel">
     <h2>Upload a CSV</h2>
-    <p class="muted">
-      Needs a <code>name</code> column and a <code>domain</code> column (case doesn't
-      matter). An optional <code>region</code> column is used if present. Domains may
-      be bare hostnames or full URLs — <code>https://www.acme.com/</code> and
-      <code>acme.com</code> both resolve to the same broker.
+    <p class="panel__note">
+      Needs a <code>name</code> column and a <code>domain</code> column (case doesn't matter). An optional
+      <code>region</code> column is used if present. Domains may be bare hostnames or full URLs —
+      <code>https://www.acme.com/</code> and <code>acme.com</code> both resolve to the same broker.
     </p>
     <form method="post" action="/add/csv?csrf={{ csrf_token() }}" enctype="multipart/form-data">
       <label for="file">CSV file</label>
-      <input type="file" id="file" name="file" accept=".csv,text/csv" required>
-      <button type="submit">Import CSV</button>
+      <input type="file" id="file" name="file" accept=".csv,text/csv" required data-testid="csv-file-input">
+      <button class="btn btn--filled" type="submit" data-testid="csv-import-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Import CSV
+      </button>
     </form>
   </section>
 
-  <section class="panel">
+  <section class="panel panel--form rise" data-testid="manual-add-panel">
     <h2>Add one broker manually</h2>
     <form method="post" action="/add/manual?csrf={{ csrf_token() }}">
       <label for="name">Name</label>
-      <input type="text" id="name" name="name" required>
+      <input type="text" id="name" name="name" required data-testid="manual-name-input">
 
       <label for="domain">Domain</label>
-      <input type="text" id="domain" name="domain" placeholder="acme.com" required>
+      <input type="text" id="domain" name="domain" placeholder="acme.com" required data-testid="manual-domain-input">
 
       <label for="region">Region <span class="muted">(optional)</span></label>
-      <input type="text" id="region" name="region">
+      <input type="text" id="region" name="region" data-testid="manual-region-input">
 
-      <button type="submit">Add broker</button>
+      <button class="btn btn--filled" type="submit" data-testid="manual-add-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add broker
+      </button>
     </form>
   </section>
 {% endblock %}

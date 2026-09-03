@@ -4,72 +4,66 @@
 {% block title %}Drafts — {{ broker["name"] }} — Broker Content Engine{% endblock %}
 {% block content %}
   {% if message %}
-    <div class="flash {{ 'flash-ok' if ok else 'flash-error' }}">{{ message }}</div>
+    <div class="flash {{ 'flash-ok' if ok else 'flash-error' }}" data-testid="flash-message">{{ message }}</div>
   {% endif %}
 
-  <a class="add-link" href="/">&larr; Back to shortlist</a>
+  <a class="backlink" href="/" data-testid="back-to-shortlist">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+    Back to shortlist
+  </a>
 
-  <h2>{{ broker["name"] }}</h2>
-  <p class="muted">
-    {% if broker["domain"] %}
-      <span class="domain">{{ broker["domain"] }}</span>
-    {% else %}
-      domain unspecified
-    {% endif %}
-  </p>
+  <div class="doc-head rise">
+    <p class="eyebrow">Stage 5 · Draft review</p>
+    <h1>{{ broker["name"] }}</h1>
+    <p class="card__meta">
+      {% if broker["domain"] %}
+        <span class="domain">{{ broker["domain"] }}</span>
+      {% else %}
+        domain unspecified
+      {% endif %}
+    </p>
+  </div>
 
   {% if angle %}
-    <div class="flash flash-error">
+    <div class="notice rise" data-testid="unvetted-banner">
       <strong>Unvetted machine output.</strong> Nothing below has been through
       spec &sect;10.3's originality gates or &sect;3's editorial value test
       &mdash; those checks are not built yet. Every draft here carries
       <code>status=&#39;pending_review&#39;</code> and has not been reviewed by
-      a human. This page is a reading view only; it is not an approval
-      workflow.
+      a human. This page is a reading view only; it is not an approval workflow.
     </div>
 
-    <section class="panel" style="max-width: none;">
-      <h2>Angle</h2>
-      <p><strong>{{ angle["title"] or "Untitled angle" }}</strong></p>
+    <section class="card rise" data-testid="angle-card">
+      <p class="eyebrow card__eyebrow">The angle</p>
+      <p class="angle-title">{{ angle["title"] or "Untitled angle" }}</p>
       {% if angle["score"] is not none %}
-        <p class="muted">Score: {{ "%.2f"|format(angle["score"]) }}</p>
+        <p class="card__meta">Score {{ "%.2f"|format(angle["score"]) }}</p>
       {% endif %}
-      <p>
-        {% if angle["premise"] %}
-          {{ angle["premise"] }}
-        {% else %}
-          <span class="muted">No premise recorded.</span>
-        {% endif %}
-      </p>
-      <p><strong>Audience value:</strong>
-        {% if angle["audience_value"] %}
-          {{ angle["audience_value"] }}
-        {% else %}
-          <span class="muted">not stated</span>
-        {% endif %}
-      </p>
-      <p><strong>Sunreef relevance:</strong>
-        {% if angle["sunreef_relevance"] %}
-          {{ angle["sunreef_relevance"] }}
-        {% else %}
-          <span class="muted">not stated</span>
-        {% endif %}
-      </p>
+      <div class="prose" style="margin-top:1rem;">
+        <p>
+          {% if angle["premise"] %}{{ angle["premise"] }}{% else %}<span class="muted">No premise recorded.</span>{% endif %}
+        </p>
+      </div>
+      <div class="field">
+        <span class="field__label">Audience value</span>
+        {% if angle["audience_value"] %}{{ angle["audience_value"] }}{% else %}<span class="muted">not stated</span>{% endif %}
+      </div>
+      <div class="field">
+        <span class="field__label">Sunreef relevance</span>
+        {% if angle["sunreef_relevance"] %}{{ angle["sunreef_relevance"] }}{% else %}<span class="muted">not stated</span>{% endif %}
+      </div>
     </section>
 
-    <section class="panel" style="max-width: none;">
-      <h2>Long draft (pillar)</h2>
+    <section class="card rise" data-testid="long-draft-card">
+      <p class="eyebrow card__eyebrow">Pillar</p>
+      <h2>Long draft</h2>
       {% if long_draft %}
-        <p class="muted">
-          {% if long_draft["word_count"] is not none %}
-            {{ long_draft["word_count"] }} words
-          {% else %}
-            word count unknown
-          {% endif %}
+        <p class="card__meta">
+          {% if long_draft["word_count"] is not none %}{{ long_draft["word_count"] }} words{% else %}word count unknown{% endif %}
         </p>
-        {% for para in long_draft["body_md"] | paragraphs %}
-          <p>{{ para }}</p>
-        {% endfor %}
+        <div class="prose">
+          {% for para in long_draft["body_md"] | paragraphs %}<p>{{ para }}</p>{% endfor %}
+        </div>
         {{ keyword_panel(long_keywords, max_difficulty, min_volume) }}
         {{ gate_panel(long_draft, uniqueness_threshold) }}
       {% else %}
@@ -77,58 +71,49 @@
       {% endif %}
     </section>
 
-    <section class="panel" style="max-width: none;">
-      <h2>Medium draft (regular post)</h2>
+    <section class="card rise" data-testid="medium-draft-card">
+      <p class="eyebrow card__eyebrow">Regular post</p>
+      <h2>Medium draft</h2>
       {% if medium_draft %}
-        <p class="muted">
-          {% if medium_draft["word_count"] is not none %}
-            {{ medium_draft["word_count"] }} words
-          {% else %}
-            word count unknown
-          {% endif %}
+        <p class="card__meta">
+          {% if medium_draft["word_count"] is not none %}{{ medium_draft["word_count"] }} words{% else %}word count unknown{% endif %}
         </p>
-        {% for para in medium_draft["body_md"] | paragraphs %}
-          <p>{{ para }}</p>
-        {% endfor %}
+        <div class="prose">
+          {% for para in medium_draft["body_md"] | paragraphs %}<p>{{ para }}</p>{% endfor %}
+        </div>
         {{ keyword_panel(medium_keywords, max_difficulty, min_volume) }}
         {{ gate_panel(medium_draft, uniqueness_threshold) }}
       {% else %}
         <div class="empty-state">
-          <p>Medium condensation failed for this draft. The long draft above
-          was written, but condensing it to this broker's own typical
-          article length did not succeed. Run
+          <p>Medium condensation failed for this draft. The long draft above was written, but condensing it
+          to this broker's own typical article length did not succeed. Run
           <code>bce redraft {{ broker["domain"] }}</code> to try again.</p>
         </div>
       {% endif %}
     </section>
 
-    <section class="panel" style="max-width: none;">
-      <h2>Short draft (newsletter)</h2>
+    <section class="card rise" data-testid="short-draft-card">
+      <p class="eyebrow card__eyebrow">Newsletter</p>
+      <h2>Short draft</h2>
       {% if short_draft %}
-        <p class="muted">
-          {% if short_draft["word_count"] is not none %}
-            {{ short_draft["word_count"] }} words
-          {% else %}
-            word count unknown
-          {% endif %}
+        <p class="card__meta">
+          {% if short_draft["word_count"] is not none %}{{ short_draft["word_count"] }} words{% else %}word count unknown{% endif %}
         </p>
-        {% for para in short_draft["body_md"] | paragraphs %}
-          <p>{{ para }}</p>
-        {% endfor %}
+        <div class="prose">
+          {% for para in short_draft["body_md"] | paragraphs %}<p>{{ para }}</p>{% endfor %}
+        </div>
         {{ keyword_panel(short_keywords, max_difficulty, min_volume) }}
         {{ gate_panel(short_draft, uniqueness_threshold) }}
       {% else %}
         <div class="empty-state">
-          <p>Short condensation failed for this draft. The long draft above
-          was written, but condensing it to short form did not succeed. Run
-          <code>bce redraft {{ broker["domain"] }}</code> to try again.</p>
+          <p>Short condensation failed for this draft. The long draft above was written, but condensing it
+          to short form did not succeed. Run <code>bce redraft {{ broker["domain"] }}</code> to try again.</p>
         </div>
       {% endif %}
     </section>
   {% else %}
-    <div class="empty-state">
-      <p>No draft yet for this broker. Run <code>bce draft</code> to propose
-      an angle and write one.</p>
+    <div class="empty-state rise" data-testid="no-draft-empty-state">
+      <p>No draft yet for this broker. Run <code>bce draft</code> to propose an angle and write one.</p>
     </div>
   {% endif %}
 {% endblock %}

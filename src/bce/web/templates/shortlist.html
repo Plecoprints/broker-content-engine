@@ -2,85 +2,125 @@
 {% block title %}Shortlist — Broker Content Engine{% endblock %}
 {% block content %}
   {% if message %}
-    <div class="flash {{ 'flash-ok' if ok else 'flash-error' }}">{{ message }}</div>
+    <div class="flash {{ 'flash-ok' if ok else 'flash-error' }}" data-testid="flash-message">{{ message }}</div>
   {% endif %}
-  <a class="add-link" href="/add">+ Add brokers</a>
+
+  {% set ns = namespace(qualified=0, rejected=0, pending=0) %}
+  {% for b in brokers %}
+    {% if b["qualified"] == 1 %}{% set ns.qualified = ns.qualified + 1 %}
+    {% elif b["qualified"] == 0 %}{% set ns.rejected = ns.rejected + 1 %}
+    {% else %}{% set ns.pending = ns.pending + 1 %}{% endif %}
+  {% endfor %}
+
+  <section class="section-head rise">
+    <p class="eyebrow">Stage 1 · Partner shortlist</p>
+    <h1>The broker <em class="gilt">shortlist</em></h1>
+    <p class="lede">Every partner in the pipeline, warmest Sunreef affinity first — with where each one
+    stands on qualification, voice profiling and drafting.</p>
+  </section>
+
   {% if brokers %}
-    <table>
-      <caption>{{ brokers | length }} broker{{ "s" if brokers | length != 1 else "" }}, warmest affinity first</caption>
-      <thead>
-        <tr>
-          <th>Broker</th>
-          <th>Domain</th>
-          <th>Region</th>
-          <th>Affinity</th>
-          <th>State</th>
-          <th>Reason</th>
-          <th>Channels</th>
-          <th>Drafts</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for b in brokers %}
+    <div class="figures rise">
+      <div class="figure">
+        <span class="n">{{ brokers | length }}</span>
+        <span class="l">Brokers<br>on the shortlist</span>
+      </div>
+      <div class="figure is-signal">
+        <span class="n">{{ ns.qualified }}</span>
+        <span class="l">Qualified<br>to publish</span>
+      </div>
+      <div class="figure is-locked">
+        <span class="n">{{ ns.rejected }}</span>
+        <span class="l">Rejected<br>at Stage 2</span>
+      </div>
+      <div class="figure is-pending">
+        <span class="n">{{ ns.pending }}</span>
+        <span class="l">Pending<br>a first pass</span>
+      </div>
+      <div class="figure">
+        <span class="n">{{ broker_ids_with_drafts | length }}</span>
+        <span class="l">With drafts<br>on file</span>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="toolbar rise">
+    <a class="btn btn--filled" href="/add" data-testid="add-brokers-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Add brokers
+    </a>
+  </div>
+
+  {% if brokers %}
+    <div class="table-wrap rise">
+      <table data-testid="shortlist-table">
+        <caption>{{ brokers | length }} broker{{ "s" if brokers | length != 1 else "" }} · warmest affinity first</caption>
+        <thead>
           <tr>
-            <td>{{ b["name"] }}</td>
-            <td><span class="domain">{{ b["domain"] }}</span></td>
-            <td>
-              {% if b["region"] %}
-                {{ b["region"] }}
-              {% else %}
-                <span class="muted">unspecified</span>
-              {% endif %}
-            </td>
-            <td>{{ b["sunreef_affinity"] }}</td>
-            <td>
-              {% if b["qualified"] == 1 %}
-                <span class="pill pill-qualified">qualified</span>
-              {% elif b["qualified"] == 0 %}
-                <span class="pill pill-rejected">rejected</span>
-              {% else %}
-                <span class="pill pill-pending">pending</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if b["qualified_reason"] %}
-                {{ b["qualified_reason"] }}
-              {% else %}
-                <span class="muted">&mdash;</span>
-              {% endif %}
-            </td>
-            <td>
-              editorial:
-              {% if b["has_editorial"] is none %}
-                <span class="muted">unknown</span>
-              {% elif b["has_editorial"] %}
-                yes{% if b["editorial_last_post"] %} ({{ b["editorial_last_post"] }}){% endif %}
-              {% else %}
-                no
-              {% endif %}
-              &middot;
-              newsletter:
-              {% if b["has_newsletter"] is none %}
-                <span class="muted">unknown</span>
-              {% elif b["has_newsletter"] %}
-                yes
-              {% else %}
-                no
-              {% endif %}
-            </td>
-            <td>
-              {% if b["id"] in broker_ids_with_drafts %}
-                <a href="/broker/{{ b['id'] }}/drafts">View drafts</a>
-              {% else %}
-                <span class="muted">&mdash;</span>
-              {% endif %}
-            </td>
+            <th>Broker</th>
+            <th>Domain</th>
+            <th>Region</th>
+            <th>Affinity</th>
+            <th>State</th>
+            <th>Reason</th>
+            <th>Channels</th>
+            <th>Drafts</th>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for b in brokers %}
+            <tr data-testid="broker-row">
+              <td><span class="name">{{ b["name"] }}</span></td>
+              <td><span class="domain">{{ b["domain"] }}</span></td>
+              <td>
+                {% if b["region"] %}{{ b["region"] }}{% else %}<span class="muted">unspecified</span>{% endif %}
+              </td>
+              <td>{{ b["sunreef_affinity"] }}</td>
+              <td>
+                {% if b["qualified"] == 1 %}
+                  <span class="pill pill-qualified">qualified</span>
+                {% elif b["qualified"] == 0 %}
+                  <span class="pill pill-rejected">rejected</span>
+                {% else %}
+                  <span class="pill pill-pending">pending</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if b["qualified_reason"] %}{{ b["qualified_reason"] }}{% else %}<span class="muted">&mdash;</span>{% endif %}
+              </td>
+              <td>
+                <span class="muted">editorial:</span>
+                {% if b["has_editorial"] is none %}
+                  <span class="muted">unknown</span>
+                {% elif b["has_editorial"] %}
+                  yes{% if b["editorial_last_post"] %} ({{ b["editorial_last_post"] }}){% endif %}
+                {% else %}
+                  no
+                {% endif %}
+                &middot;
+                <span class="muted">newsletter:</span>
+                {% if b["has_newsletter"] is none %}
+                  <span class="muted">unknown</span>
+                {% elif b["has_newsletter"] %}
+                  yes
+                {% else %}
+                  no
+                {% endif %}
+              </td>
+              <td>
+                {% if b["id"] in broker_ids_with_drafts %}
+                  <a href="/broker/{{ b['id'] }}/drafts" data-testid="view-drafts-link">View drafts &rarr;</a>
+                {% else %}
+                  <span class="muted">&mdash;</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   {% else %}
-    <div class="empty-state">
+    <div class="empty-state rise" data-testid="empty-state">
       <p>No brokers yet. <a href="/add">Import a CSV or add one manually</a>, or run
       <code>bce seed-example</code> to see example data.</p>
     </div>
