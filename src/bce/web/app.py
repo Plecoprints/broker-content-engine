@@ -153,6 +153,23 @@ _PORTAL_SLATE = [
     },
 ]
 
+#: Curated lead imagery (placeholders, swappable later for real photography).
+#: Operator drafts render these monochrome; the portal renders them in colour.
+_LEAD_IMAGES = [
+    "https://images.unsplash.com/photo-1747073396150-b30733fcd2ad?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHw0fHxsdXh1cnklMjBjYXRhbWFyYW4lMjBzYWlsaW5nJTIwb2NlYW58ZW58MHx8fHwxNzg4NTAyNTg4fDA&ixlib=rb-4.1.0&q=85&w=1100",
+    "https://images.unsplash.com/photo-1773594559238-1f4bcf8672a8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwyfHxsdXh1cnklMjBjYXRhbWFyYW4lMjBzYWlsaW5nJTIwb2NlYW58ZW58MHx8fHwxNzg4NTAyNTg4fDA&ixlib=rb-4.1.0&q=85&w=1100",
+    "https://images.unsplash.com/photo-1758980856386-9124d539c737?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwzfHxsdXh1cnklMjBjYXRhbWFyYW4lMjBzYWlsaW5nJTIwb2NlYW58ZW58MHx8fHwxNzg4NTAyNTg4fDA&ixlib=rb-4.1.0&q=85&w=1100",
+    "https://images.unsplash.com/photo-1672832701628-5e8e2e6ade26?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwxfHxjYXRhbWFyYW4lMjBkZWNrJTIwdGVhayUyMHN1bnNldHxlbnwwfHx8fDE3ODg1MDI1ODh8MA&ixlib=rb-4.1.0&q=85&w=1100",
+    "https://images.unsplash.com/photo-1787840529594-f986e6d15486?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHw0fHxjYXRhbWFyYW4lMjBkZWNrJTIwdGVhayUyMHN1bnNldHxlbnwwfHx8fDE3ODg1MDI1ODh8MA&ixlib=rb-4.1.0&q=85&w=1100",
+]
+_PORTAL_IMAGES = [
+    "https://images.unsplash.com/photo-1685279385199-417760fb8ff3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHwxfHxzYWlsaW5nJTIweWFjaHQlMjBtZWRpdGVycmFuZWFuJTIwbWFyaW5hfGVufDB8fHx8MTc4ODUwMjU4OHww&ixlib=rb-4.1.0&q=85&w=1500",
+    "https://images.unsplash.com/photo-1747073396150-b30733fcd2ad?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHw0fHxsdXh1cnklMjBjYXRhbWFyYW4lMjBzYWlsaW5nJTIwb2NlYW58ZW58MHx8fHwxNzg4NTAyNTg4fDA&ixlib=rb-4.1.0&q=85&w=1500",
+    "https://images.unsplash.com/photo-1672832701628-5e8e2e6ade26?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwxfHxjYXRhbWFyYW4lMjBkZWNrJTIwdGVhayUyMHN1bnNldHxlbnwwfHx8fDE3ODg1MDI1ODh8MA&ixlib=rb-4.1.0&q=85&w=1500",
+    "https://images.unsplash.com/photo-1758980856386-9124d539c737?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwzfHxsdXh1cnklMjBjYXRhbWFyYW4lMjBzYWlsaW5nJTIwb2NlYW58ZW58MHx8fHwxNzg4NTAyNTg4fDA&ixlib=rb-4.1.0&q=85&w=1500",
+]
+_COLLECTED_HERO = "https://images.unsplash.com/photo-1787840529594-f986e6d15486?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHw0fHxjYXRhbWFyYW4lMjBkZWNrJTIwdGVhayUyMHN1bnNldHxlbnwwfHx8fDE3ODg1MDI1ODh8MA&ixlib=rb-4.1.0&q=85&w=1600"
+
 
 def _portal_context(conn):
     """Pick a real seeded broker that has finished drafts, and return
@@ -395,10 +412,17 @@ def create_app(db_path: str) -> FastAPI:
                 (angle["id"],),
             ).fetchone()
 
+        imgs = _LEAD_IMAGES
+        draft_images = {
+            "long": imgs[broker_id % len(imgs)],
+            "medium": imgs[(broker_id + 1) % len(imgs)],
+            "short": imgs[(broker_id + 2) % len(imgs)],
+        }
         return _TEMPLATES.TemplateResponse(
             request=request, name="draft_viewer.html",
             context={
                 "broker": broker,
+                "draft_images": draft_images,
                 "angle": angle,
                 "long_draft": long_draft,
                 "medium_draft": medium_draft,
@@ -537,13 +561,18 @@ def create_app(db_path: str) -> FastAPI:
         conn = db.connect(app.state.db_path)
         db.init_schema(conn)
         broker, chosen_angle, collected = _portal_context(conn)
+        slate = [
+            dict(a, image=_PORTAL_IMAGES[i % len(_PORTAL_IMAGES)])
+            for i, a in enumerate(_PORTAL_SLATE)
+        ]
         return _TEMPLATES.TemplateResponse(
             request=request, name="portal.html",
             context={
                 "broker": broker,
                 "chosen_angle": chosen_angle,
                 "collected": collected,
-                "slate": _PORTAL_SLATE,
+                "slate": slate,
+                "collected_hero": _COLLECTED_HERO,
             },
         )
 

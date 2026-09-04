@@ -68,6 +68,7 @@
 
     <div class="draft-panel" id="panel-long" role="tabpanel">
       <section class="card" data-testid="long-draft-card">
+        {% if long_draft %}<figure class="lead"><div class="lead__frame"><img src="{{ draft_images.long }}" alt="" loading="lazy"></div><figcaption>Lead image &middot; placeholder</figcaption></figure>{% endif %}
         <div class="card__bar">
           <div>
             <p class="eyebrow card__eyebrow">Pillar</p>
@@ -98,6 +99,7 @@
 
     <div class="draft-panel" id="panel-medium" role="tabpanel" hidden>
       <section class="card" data-testid="medium-draft-card">
+        {% if medium_draft %}<figure class="lead"><div class="lead__frame"><img src="{{ draft_images.medium }}" alt="" loading="lazy"></div><figcaption>Lead image &middot; placeholder</figcaption></figure>{% endif %}
         <div class="card__bar">
           <div>
             <p class="eyebrow card__eyebrow">Regular post</p>
@@ -132,6 +134,7 @@
 
     <div class="draft-panel" id="panel-short" role="tabpanel" hidden>
       <section class="card" data-testid="short-draft-card">
+        {% if short_draft %}<figure class="lead"><div class="lead__frame"><img src="{{ draft_images.short }}" alt="" loading="lazy"></div><figcaption>Lead image &middot; placeholder</figcaption></figure>{% endif %}
         <div class="card__bar">
           <div>
             <p class="eyebrow card__eyebrow">Newsletter</p>

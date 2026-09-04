@@ -65,7 +65,25 @@ logic from https://sunreef-catamarans.com/en/80-power-next/ and apply it."
   CSS (all shared class hooks preserved so page templates + the 755 tests are unaffected).
 - Design agent NOT used (user supplied explicit images + shadow values, per policy).
 
+## Iteration 5 (this session) — Sunreef identity: ivory/navy/gold, wordmark, engraved emblem, lead images
+- **Palette corrected** (user: "red is not our colour; ivory not grey; colours are white/grey/gold").
+  Operator console rebuilt on **ivory `#efeae0` + navy `#0D2750` shadow + gold `#ae8534`** (light) and
+  **deep-navy graphite** (dark). Red fully removed; gold is the only accent.
+- **SUNREEF wordmark** wired into the masthead + footer (black/white webp, theme-toggled);
+  logos vendored at `static/sunreef-{black,white,grey}.webp`.
+- **Engraved maker's mark**: the Sunreef sea-star emblem processed to an alpha PNG mask
+  (`static/sunreef-emblem.png`) and DEBOSSED via CSS `mask` + paired drop-shadows — a large faint
+  watermark on every operator page, a small hallmark by the logo, and in the footer; a subtle tonal
+  imprint on the portal (provenance + footer).
+- **Lead-image placeholders** added (curated Unsplash yacht photography, swappable via
+  `_LEAD_IMAGES`/`_PORTAL_IMAGES`/`_COLLECTED_HERO` in app.py): operator draft cards render them
+  MONOCHROME in an inset frame; portal slate cards + the "collected" hero render full-colour.
+- Design agent NOT used (user supplied logo, emblem, palette + reference images directly).
+
 ## Backlog / next
+- P1: Convert the **broker portal** palette from teal → the ivory/navy/gold Sunreef system (still teal).
+- P0 (pending from iteration-3 ask): portal sign-in (invite link + session), angle persistence into a
+  review queue, portal empty/"week skipped" states, voice-profile page.
 - P0 (still pending from iteration-3 ask): Portal sign-in (single-use invite link + session),
   angle persistence into a review queue, portal empty/"week skipped" states, voice-profile page.
   Integration playbook for the invite-link/session auth already obtained; schema plan drafted
