@@ -51,7 +51,26 @@ logic from https://sunreef-catamarans.com/en/80-power-next/ and apply it."
 - NOTE: no automated browser test run — app serves on `localhost:8000` via CLI (not the standard
   preview port), so verification is the passing unit suite + curl + screenshots.
 
+## Iteration 4 (this session) — preview wiring + "Soft Machine" neumorphic redesign
+- **Preview now works**: repo has no /app/frontend|backend, so default supervisor programs are FATAL.
+  Added a `bce` supervisor program (`/etc/supervisor/conf.d/bce.conf`, recoverable copy in
+  `/app/scripts/`) running `uvicorn bce.web.asgi:app` on :3000 (the port the platform preview
+  proxies) with --reload; new `src/bce/web/asgi.py` factory; `_TEMPLATES.env.auto_reload=True`.
+  Re-enable after a pod restart: `bash /app/scripts/enable_preview.sh`.
+- **Operator console fully re-skinned as neumorphic soft-UI** (user brief: clinical luxury, Apple ×
+  Sunreef × Rolls-Royce × Richard Mille × Abloh; reference images + exact shadow specs supplied).
+  One material `#E8EAE9`, depth from paired `#FFFFFF` / navy `#0D2750` shadows only (no borders);
+  single Richard-Mille red accent; Manrope (thin display) + IBM Plex Mono microlabels; metallic
+  knurled theme toggle; raised/inset elevation tokens; graphite dark variant. Rewrote `base.html`
+  CSS (all shared class hooks preserved so page templates + the 755 tests are unaffected).
+- Design agent NOT used (user supplied explicit images + shadow values, per policy).
+
 ## Backlog / next
+- P0 (still pending from iteration-3 ask): Portal sign-in (single-use invite link + session),
+  angle persistence into a review queue, portal empty/"week skipped" states, voice-profile page.
+  Integration playbook for the invite-link/session auth already obtained; schema plan drafted
+  (broker_invite, broker_session, slate_angle, review_pick).
+- P1: Carry the soft-UI/neumorphic system across to the broker portal (its own broker-first palette).
 - P1: Apply the same system to the external **broker portal** — but per `design/README.md`
   the portal must NOT read as Sunreef marketing (brass hidden, broker masthead). Distinct job.
 - P1: Wire HTMX partial-swaps (base.html notes it's not yet added).
