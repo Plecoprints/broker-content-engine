@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sunreef — Soft Machine · component reference</title>
+  <script>try{var s=localStorage.getItem('bce-theme');if(s==='light'||s==='dark')document.documentElement.setAttribute('data-theme',s);}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/static/sunreef-soft.css">
+  <script src="/static/sunreef-soft.js" defer></script>
+  <style>
+    /* reference-page scaffolding only (not part of the system) */
+    .ref-sec { padding-block: 2.5rem; border-top: 1px solid rgba(128,128,128,.14); }
+    .ref-sec:first-of-type { border-top: 0; }
+    .ref-h { font-family: var(--mono); font-size: .62rem; letter-spacing: .28em; text-transform: uppercase; color: var(--gold); margin: 0 0 .35rem; }
+    .ref-sec > h2 { font-size: 1.9rem; font-weight: 300; letter-spacing: -.03em; margin: 0 0 .4rem; }
+    .ref-note { color: var(--muted); font-size: .85rem; margin: 0 0 1.5rem; max-width: 62ch; }
+    .ref-row { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; }
+    .ref-tag { font-family: var(--mono); font-size: .58rem; letter-spacing: .1em; color: var(--faint); }
+    .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap: 1rem; }
+    .sw { border-radius: var(--r-md); box-shadow: var(--nm-raise-sm); padding: 1.25rem 1rem .8rem; }
+    .sw span { display: block; font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+    .sw i { display: block; height: 34px; border-radius: 10px; margin-bottom: .7rem; }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="shell masthead__inner">
+      <a class="brand" href="#">
+        <span class="maker brand__emblem" aria-hidden="true"></span>
+        <img class="brand__logo logo-light" src="/static/sunreef-black.webp" alt="Sunreef" width="110" height="19">
+        <img class="brand__logo logo-dark" src="/static/sunreef-white.webp" alt="Sunreef" width="110" height="19">
+        <span class="brand__rule"></span>
+        <span class="brand__sub">Soft Machine<br>Component Reference</span>
+      </a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#" aria-current="page">Reference</a>
+        <a href="#tokens">Tokens</a>
+      </nav>
+      <button class="nm-toggle" id="theme-toggle" type="button" aria-label="Switch colour scheme">
+        <span class="nm-toggle__knob"><span class="nm-toggle__dot"></span></span>
+      </button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="watermark" aria-hidden="true"></div>
+
+    <section class="ref-sec">
+      <p class="ref-h">Sunreef · Soft Machine</p>
+      <h2 style="font-size:clamp(2.2rem,5vw,3.4rem);">Component reference</h2>
+      <p class="ref-note">Every class in <code>sunreef-soft.css</code>, shown with live markup. Toggle the
+      knurl (top-right) for the navy dark theme. Copy any block's markup straight from this file.</p>
+    </section>
+
+    <section class="ref-sec" id="tokens">
+      <p class="ref-h">Foundation</p>
+      <h2>Tokens</h2>
+      <p class="ref-note">CSS custom properties on <code>:root</code>. Elevation is expressed as five
+      shadow tokens — <code>--nm-raise</code>, <code>--nm-raise-sm</code>, <code>--nm-raise-lg</code>,
+      <code>--nm-inset</code>, <code>--nm-inset-sm</code>.</p>
+      <div class="swatches">
+        <div class="sw"><i style="background:var(--bg);box-shadow:var(--nm-inset-sm);"></i><span>--bg · ivory</span></div>
+        <div class="sw"><i style="background:var(--bg-lo);"></i><span>--bg-lo</span></div>
+        <div class="sw"><i style="background:var(--ink);"></i><span>--ink</span></div>
+        <div class="sw"><i style="background:var(--muted);"></i><span>--muted</span></div>
+        <div class="sw"><i style="background:var(--gold);box-shadow:0 0 10px var(--gold);"></i><span>--gold · accent</span></div>
+      </div>
+    </section>
+
+    <section class="ref-sec">
+      <p class="ref-h">.btn</p>
+      <h2>Buttons</h2>
+      <p class="ref-note">Soft pills. Raised at rest, press inward on <code>:active</code>. Modifiers:
+      <code>.btn--accent</code> (gold text), <code>.btn--ghost</code> (smaller, lighter).</p>
+      <div class="ref-row">
+        <button class="btn">Primary</button>
+        <button class="btn btn--accent">Accent</button>
+        <button class="btn btn--ghost">Ghost</button>
+        <a class="backlink" href="#">&larr; Backlink</a>
+      </div>
+    </section>
+
+    <section class="ref-sec">
+      <p class="ref-h">.nm-toggle · .maker</p>
+      <h2>Toggle &amp; maker's mark</h2>
+      <p class="ref-note">The metallic knurled theme control, and the sea-star emblem engraved
+      (debossed) into the surface via <code>.maker</code> (CSS mask + paired shadows).</p>
+      <div class="ref-row">
+        <button class="nm-toggle" data-sunreef-toggle type="button" aria-label="toggle"><span class="nm-toggle__knob"><span class="nm-toggle__dot"></span></span></button>
+        <span class="maker" style="width:44px;height:44px;"></span>
+        <span class="maker" style="width:72px;height:72px;"></span>
+      </div>
+    </section>
+
+    <section class="ref-sec">
+      <p class="ref-h">.figures / .figure</p>
+      <h2>Stat tiles</h2>
+      <p class="ref-note">Extruded tiles. Add <code>.is-signal</code> for the live gold pinpoint.</p>
+      <div class="figures">
+        <div class="figure"><span class="n">128</span><span class="l">Brokers<br>on the shortlist</span></div>
+        <div class="figure is-signal"><span class="n">42</span><span class="l">Logged in<br>this week</span></div>
+        <div class="figure"><span class="n">17</span><span class="l">Picked<br>an angle</span></div>
+      </div>
+    </section>
+
+    <section class="ref-sec">
+      <p class="ref-h">.table-wrap / table</p>
+      <h2>Table</h2>
+      <p class="ref-note">Recessed into an inset well; borderless rows separated by a hairline.</p>
+      <div class="table-wrap">
+        <table>
+          <caption>3 brokers</caption>
+          <thead><tr><th>Broker</th><th>Domain</th><th>State</th></tr></thead>
+          <tbody>
+            <tr><td><span class="name">Meridian Yacht Brokers</span></td><td><span class="domain">meridian-yacht.example</span></td><td><span class="pill pill-qualified">picked</span></td></tr>
+            <tr><td><span class="name">Anchor Bay Marine</span></td><td><span class="domain">anchorbay.example</span></td><td><span class="pill pill-pending">pending</span></td></tr>
+            <tr><td><span class="name">Azure Coast Yachts</span></td><td><span class="domain">azurecoast.example</span></td><td><span class="pill pill-rejected">declined</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="ref-sec">
+      <p class="ref-h">.pill</p>
+      <h2>Pills</h2>
+      <p class="ref-note">Inset chips. Gold dot = live (<code>.pill-qualified</code>); hollow ring =
+      <code>.pill-rejected</code>; faint = <code>.pill-pending</code>.</p>
+      <div class="ref-row">
+        <span class="pill pill-qualified">live</span>
+        <span class="pill pill-pending">pending</span>
+        <span class="pill pill-rejected">declined</span>
+      </div>
+    </section>
+
+    <section class="ref-sec">
+      <p class="ref-h">.panel / inputs</p>
+      <h2>Panel &amp; form</h2>
+      <p class="ref-note">Inputs are inset wells (pill radius). Focus ring is a gold halo.</p>
+      <div class="panel panel--form">
+        <h2>Add one broker</h2>
+        <form onsubmit="return false;">
+          <label for="r-name">Name</label>
+          <input type="text" id="r-name" placeholder="Meridian Yacht Brokers">
+          <label for="r-dom">Domain</label>
+          <input type="text" id="r-dom" placeholder="meridian-yacht.example">
+          <button class="btn" type="submit">Add broker</button>
+        </form>
+      </div>
+      <div class="flash flash-ok">Saved — <strong>128</strong> brokers on the shortlist.</div>
+    </section>
+
+    <section class="ref-sec">
+      <p class="ref-h">.tabs / .copybtn / .lead</p>
+      <h2>Tabs, copy &amp; lead image</h2>
+      <p class="ref-note">Segmented soft control; panels toggle by id. Copy button copies the active
+      panel's <code>.prose</code>. Lead image sits in an inset frame, rendered monochrome.</p>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-target="rp-a">Pillar<span class="tab__count">2059w</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-target="rp-b">Newsletter<span class="tab__count">145w</span></button>
+      </div>
+      <div class="card draft-panel" id="rp-a" role="tabpanel">
+        <figure class="lead"><div class="lead__frame"><img src="/static/sunreef-emblem.png" alt="" style="filter:none;object-fit:contain;padding:12%;"></div><figcaption>Lead image &middot; placeholder</figcaption></figure>
+        <div class="card__bar"><div><p class="eyebrow card__eyebrow">Pillar</p><h2>Long draft</h2></div><span class="spacer"></span>
+          <button class="copybtn" data-copy="rp-a"><span class="copybtn__label">Copy</span></button></div>
+        <div class="prose reading"><p>The bridgedeck was designed around a single question: how do you make a bluewater passage feel like an evening ashore?</p></div>
+      </div>
+      <div class="card draft-panel" id="rp-b" role="tabpanel" hidden>
+        <div class="card__bar"><div><p class="eyebrow card__eyebrow">Newsletter</p><h2>Short draft</h2></div><span class="spacer"></span>
+          <button class="copybtn" data-copy="rp-b"><span class="copybtn__label">Copy</span></button></div>
+        <div class="prose reading"><p>A checklist, not a brochure: the five things to verify before you sign.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="shell">
+      <div class="foot__inner">
+        <span class="maker foot__mark"></span>
+        <span>Soft Machine · v1</span>
+        <span class="spacer"></span>
+        <span>Sunreef Yachts</span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

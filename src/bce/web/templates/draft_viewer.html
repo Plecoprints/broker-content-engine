@@ -165,45 +165,6 @@
         {% endif %}
       </section>
     </div>
-
-    <script>
-      (function () {
-        var tabs = Array.prototype.slice.call(document.querySelectorAll('.tabs [role="tab"]'));
-        function show(targetId) {
-          tabs.forEach(function (t) {
-            var on = t.getAttribute('data-target') === targetId;
-            t.setAttribute('aria-selected', on ? 'true' : 'false');
-            var panel = document.getElementById(t.getAttribute('data-target'));
-            if (panel) { panel.hidden = !on; }
-          });
-        }
-        tabs.forEach(function (t) {
-          t.addEventListener('click', function () { show(t.getAttribute('data-target')); });
-        });
-
-        document.querySelectorAll('.copybtn').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            var panel = document.getElementById(btn.getAttribute('data-copy'));
-            var prose = panel ? panel.querySelector('.prose') : null;
-            if (!prose) { return; }
-            var text = prose.innerText.trim();
-            var done = function () {
-              btn.classList.add('is-done');
-              var label = btn.querySelector('.copybtn__label');
-              var prev = label ? label.textContent : '';
-              if (label) { label.textContent = 'Copied'; }
-              setTimeout(function () {
-                btn.classList.remove('is-done');
-                if (label) { label.textContent = prev; }
-              }, 1600);
-            };
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(text).then(done).catch(function () {});
-            }
-          });
-        });
-      })();
-    </script>
   {% else %}
     <div class="empty-state rise" data-testid="no-draft-empty-state">
       <p>No draft yet for this broker. Run <code>bce draft</code> to propose an angle and write one.</p>

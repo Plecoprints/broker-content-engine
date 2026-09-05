@@ -80,7 +80,29 @@ logic from https://sunreef-catamarans.com/en/80-power-next/ and apply it."
   MONOCHROME in an inset frame; portal slate cards + the "collected" hero render full-colour.
 - Design agent NOT used (user supplied logo, emblem, palette + reference images directly).
 
+## Iteration 6 (this session) — design-system handoff package
+- Externalised the operator design system into standalone, hot-served files (single source of
+  truth; the app now links them, so handover == what renders):
+  · `static/sunreef-soft.css` — full "Soft Machine" system (plain CSS, no build step)
+  · `static/sunreef-soft.js` — theme toggle + segmented tabs + copy-to-clipboard (vanilla, data-attr driven)
+  · `static/reference.html` — living component gallery (button/card/table/pill/nav/toggle/lead/maker)
+  · assets: `sunreef-emblem.png` (mask), `sunreef-emblem-src.webp`, `sunreef-{black,white,grey}.webp`
+  · fonts: Manrope + IBM Plex Mono (Google Fonts — free)
+- `base.html` refactored to `<link>`/`<script>` the above; draft_viewer inline JS removed (now in the shared file).
+
+## Dev notes to action next round
+- STAT TILES: brokers are approved by hand now, so the old funnel (qualified / rejected at Stage 2 /
+  pending a first pass) is obsolete. New tiles: **logged in · picked an angle · formats chosen ·
+  images downloaded**. NB these metrics DEPEND on the portal engagement data (sign-in / choose /
+  download tracking) — i.e. coupled to the pending portal-persistence work below.
+- PORTAL HARD RULE: `score` and `sunreef_relevance` must NEVER appear on the broker-facing portal
+  (they're correct on the internal console). Enforce when designing the portal next.
+
 ## Backlog / next
+- P0: Broker portal design + build — sign-in (invite link + session), angle persistence into a
+  review queue, empty/"week skipped" states, voice-profile page; recolor to ivory/navy/gold.
+  MUST NOT render score or sunreef_relevance.
+- P1: New operator stat tiles once portal engagement tracking exists.
 - P1: Convert the **broker portal** palette from teal → the ivory/navy/gold Sunreef system (still teal).
 - P0 (pending from iteration-3 ask): portal sign-in (invite link + session), angle persistence into a
   review queue, portal empty/"week skipped" states, voice-profile page.
