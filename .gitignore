@@ -36,3 +36,8 @@ data/assets/
 data/private/
 docs/private/
 *-private.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
